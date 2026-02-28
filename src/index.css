@@ -23,3 +23,13 @@
 .markdown-body pre { @apply bg-zinc-900 border border-zinc-800 rounded-xl p-4 mb-4 overflow-x-auto; }
 .markdown-body pre code { @apply bg-transparent p-0 text-zinc-200; }
 .markdown-body blockquote { @apply border-l-4 border-emerald-500 pl-4 italic my-4 text-zinc-400; }
+
+.custom-scrollbar::-webkit-scrollbar {
+  width: 4px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  @apply bg-transparent;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  @apply bg-zinc-800 rounded-full hover:bg-zinc-700 transition-colors;
+}

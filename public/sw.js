@@ -1,4 +1,4 @@
-const CACHE_NAME = 'tekno-nova-v2';
+const CACHE_NAME = 'tekno-nova-v3';
 const ASSETS = [
   '/',
   '/index.html',

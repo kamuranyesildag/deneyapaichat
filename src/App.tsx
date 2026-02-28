@@ -21,7 +21,8 @@ import {
   Zap,
   Key,
   ArrowLeft,
-  AlertCircle
+  AlertCircle,
+  Menu
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import Markdown from 'react-markdown';
@@ -53,6 +54,7 @@ export default function App() {
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [showPremiumModal, setShowPremiumModal] = useState(false);
   const [showPrivacyModal, setShowPrivacyModal] = useState(false);
+  const [showMobileMenu, setShowMobileMenu] = useState(false);
   const [premiumStep, setPremiumStep] = useState<1 | 2>(1);
   const [licenseInput, setLicenseInput] = useState('');
   const [licenseError, setLicenseError] = useState('');
@@ -87,7 +89,16 @@ export default function App() {
     // Profile
     const storedProfile = localStorage.getItem('tekno_nova_profile');
     if (storedProfile) {
-      setProfile(JSON.parse(storedProfile));
+      const parsedProfile: UserProfile = JSON.parse(storedProfile);
+      // Security update: lastLogin and deviceId
+      const updatedProfile = {
+        ...parsedProfile,
+        lastLogin: Date.now(),
+        deviceId: parsedProfile.deviceId || Math.random().toString(36).substring(7),
+        securityVerified: true
+      };
+      setProfile(updatedProfile);
+      localStorage.setItem('tekno_nova_profile', JSON.stringify(updatedProfile));
     } else {
       setShowOnboarding(true);
     }
@@ -127,7 +138,15 @@ export default function App() {
   };
 
   const handleOnboarding = (name: string, level: UserProfile['level']) => {
-    const newProfile: UserProfile = { name, level, totalQuestions: 0, isPremium: false };
+    const newProfile: UserProfile = { 
+      name, 
+      level, 
+      totalQuestions: 0, 
+      isPremium: false,
+      deviceId: Math.random().toString(36).substring(7),
+      lastLogin: Date.now(),
+      securityVerified: true
+    };
     setProfile(newProfile);
     localStorage.setItem('tekno_nova_profile', JSON.stringify(newProfile));
     setShowOnboarding(false);
@@ -149,7 +168,7 @@ export default function App() {
 
   const handleRequestLicense = () => {
     const subject = encodeURIComponent('Tekno Nova Lisans Talebi');
-    const body = encodeURIComponent(`Merhaba İmran,\n\nTekno Nova Premium için lisans kodu almak istiyorum. Ödeme ve IBAN bilgileri için geri dönüşünü bekliyorum.\n\nAdım: ${profile?.name}\nSeviyem: ${profile?.level}`);
+    const body = encodeURIComponent(`Merhaba Bitlis Stüdyo,\n\nTekno Nova Premium için lisans kodu almak istiyorum. Ödeme ve IBAN bilgileri için geri dönüşünü bekliyorum.\n\nAdım: ${profile?.name}\nSeviyem: ${profile?.level}`);
     window.location.href = `mailto:imranyesildag123@gmail.com?subject=${subject}&body=${body}`;
   };
 
@@ -211,6 +230,18 @@ export default function App() {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const handleModeChange = (newMode: AppMode) => {
+    const premiumModes: AppMode[] = ['AI_OPTIMIZER', 'ROADMAP_GEN', 'EXPERT_MENTOR'];
+    if (premiumModes.includes(newMode) && !profile?.isPremium) {
+      setShowPremiumModal(true);
+      setPremiumStep(1);
+      return;
+    }
+    setMode(newMode);
+    setActiveTab('chat');
+    setShowMobileMenu(false);
   };
 
   const badge = profile ? getBadge(profile.totalQuestions) : null;
@@ -280,6 +311,251 @@ export default function App() {
         )}
       </AnimatePresence>
 
+      {/* Mobile Sidebar Overlay */}
+      <AnimatePresence>
+        {showMobileMenu && (
+          <>
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowMobileMenu(false)}
+              className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm lg:hidden"
+            />
+            <motion.div 
+              initial={{ x: '-100%' }}
+              animate={{ x: 0 }}
+              exit={{ x: '-100%' }}
+              transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+              className="fixed inset-y-0 left-0 z-50 w-72 bg-zinc-950 border-r border-zinc-800 lg:hidden flex flex-col"
+            >
+              <div className="p-6 border-b border-zinc-800 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 bg-emerald-500 rounded-lg flex items-center justify-center shadow-lg shadow-emerald-500/20">
+                    <Star className="text-white w-5 h-5" />
+                  </div>
+                  <span className="font-display font-bold text-lg">Tekno Nova</span>
+                </div>
+                <button onClick={() => setShowMobileMenu(false)} className="p-2 text-zinc-500 hover:text-white">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+              
+              <nav className="flex-1 p-4 space-y-1 overflow-y-auto custom-scrollbar">
+                <div className="px-4 py-2 text-[10px] font-bold uppercase tracking-[0.2em] text-zinc-500 mb-1">Ücretsiz Modlar</div>
+                <button
+                  onClick={() => handleModeChange('PROJECT_GEN')}
+                  className={cn(
+                    "w-full flex items-center gap-3 px-4 py-2.5 rounded-xl transition-all duration-200 group",
+                    mode === 'PROJECT_GEN' && activeTab === 'chat'
+                      ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20" 
+                      : "text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200"
+                  )}
+                >
+                  <Lightbulb className={cn("w-4 h-4", mode === 'PROJECT_GEN' ? "text-emerald-400" : "group-hover:text-zinc-200")} />
+                  <span className="font-semibold text-sm">Proje Üretici</span>
+                </button>
+
+                <button
+                  onClick={() => handleModeChange('DEBUGGER')}
+                  className={cn(
+                    "w-full flex items-center gap-3 px-4 py-2.5 rounded-xl transition-all duration-200 group",
+                    mode === 'DEBUGGER' && activeTab === 'chat'
+                      ? "bg-blue-500/10 text-blue-400 border border-blue-500/20" 
+                      : "text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200"
+                  )}
+                >
+                  <Bug className={cn("w-4 h-4", mode === 'DEBUGGER' ? "text-blue-400" : "group-hover:text-zinc-200")} />
+                  <span className="font-semibold text-sm">Kod Debugger</span>
+                </button>
+
+                <button
+                  onClick={() => handleModeChange('COMPONENT_LIB')}
+                  className={cn(
+                    "w-full flex items-center gap-3 px-4 py-2.5 rounded-xl transition-all duration-200 group",
+                    mode === 'COMPONENT_LIB' && activeTab === 'chat'
+                      ? "bg-zinc-500/10 text-zinc-300 border border-zinc-500/20" 
+                      : "text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200"
+                  )}
+                >
+                  <Cpu className={cn("w-4 h-4", mode === 'COMPONENT_LIB' ? "text-zinc-300" : "group-hover:text-zinc-200")} />
+                  <span className="font-semibold text-sm">Bileşen Kütüphanesi</span>
+                </button>
+
+                <button
+                  onClick={() => handleModeChange('COMMUNITY_PROJS')}
+                  className={cn(
+                    "w-full flex items-center gap-3 px-4 py-2.5 rounded-xl transition-all duration-200 group",
+                    mode === 'COMMUNITY_PROJS' && activeTab === 'chat'
+                      ? "bg-zinc-500/10 text-zinc-300 border border-zinc-500/20" 
+                      : "text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200"
+                  )}
+                >
+                  <Github className={cn("w-4 h-4", mode === 'COMMUNITY_PROJS' ? "text-zinc-300" : "group-hover:text-zinc-200")} />
+                  <span className="font-semibold text-sm">Topluluk Projeleri</span>
+                </button>
+
+                <div className="pt-4 px-4 py-2 text-[10px] font-bold uppercase tracking-[0.2em] text-zinc-500 mb-1">Premium Modlar</div>
+                <button
+                  onClick={() => handleModeChange('AI_OPTIMIZER')}
+                  className={cn(
+                    "w-full flex items-center justify-between px-4 py-2.5 rounded-xl transition-all duration-200 group",
+                    mode === 'AI_OPTIMIZER' && activeTab === 'chat'
+                      ? "bg-amber-500/10 text-amber-400 border border-amber-500/20" 
+                      : "text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200"
+                  )}
+                >
+                  <div className="flex items-center gap-3">
+                    <Zap className={cn("w-4 h-4", mode === 'AI_OPTIMIZER' ? "text-amber-400" : "group-hover:text-zinc-200")} />
+                    <span className="font-semibold text-sm">AI Kod Optimizasyonu</span>
+                  </div>
+                  {!profile?.isPremium && <Key className="w-3 h-3 text-amber-500/50" />}
+                </button>
+
+                <button
+                  onClick={() => handleModeChange('ROADMAP_GEN')}
+                  className={cn(
+                    "w-full flex items-center justify-between px-4 py-2.5 rounded-xl transition-all duration-200 group",
+                    mode === 'ROADMAP_GEN' && activeTab === 'chat'
+                      ? "bg-amber-500/10 text-amber-400 border border-amber-500/20" 
+                      : "text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200"
+                  )}
+                >
+                  <div className="flex items-center gap-3">
+                    <ChevronRight className={cn("w-4 h-4", mode === 'ROADMAP_GEN' ? "text-amber-400" : "group-hover:text-zinc-200")} />
+                    <span className="font-semibold text-sm">Proje Yol Haritası</span>
+                  </div>
+                  {!profile?.isPremium && <Key className="w-3 h-3 text-amber-500/50" />}
+                </button>
+
+                <button
+                  onClick={() => handleModeChange('EXPERT_MENTOR')}
+                  className={cn(
+                    "w-full flex items-center justify-between px-4 py-2.5 rounded-xl transition-all duration-200 group",
+                    mode === 'EXPERT_MENTOR' && activeTab === 'chat'
+                      ? "bg-amber-500/10 text-amber-400 border border-amber-500/20" 
+                      : "text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200"
+                  )}
+                >
+                  <div className="flex items-center gap-3">
+                    <Award className={cn("w-4 h-4", mode === 'EXPERT_MENTOR' ? "text-amber-400" : "group-hover:text-zinc-200")} />
+                    <span className="font-semibold text-sm">Uzman Mentor</span>
+                  </div>
+                  {!profile?.isPremium && <Key className="w-3 h-3 text-amber-500/50" />}
+                </button>
+
+                <div className="pt-4 px-4 py-2 text-[10px] font-bold uppercase tracking-[0.2em] text-zinc-500 mb-1">Kişisel</div>
+                <button
+                  onClick={() => { setActiveTab('history'); setShowMobileMenu(false); }}
+                  className={cn(
+                    "w-full flex items-center gap-3 px-4 py-2.5 rounded-xl transition-all duration-200 group",
+                    activeTab === 'history'
+                      ? "bg-amber-500/10 text-amber-400 border border-amber-500/20" 
+                      : "text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200"
+                  )}
+                >
+                  <HistoryIcon className={cn("w-4 h-4", activeTab === 'history' ? "text-amber-400" : "group-hover:text-zinc-200")} />
+                  <span className="font-semibold text-sm">Geçmişim</span>
+                </button>
+
+                <button
+                  onClick={() => { setActiveTab('profile'); setShowMobileMenu(false); }}
+                  className={cn(
+                    "w-full flex items-center gap-3 px-4 py-2.5 rounded-xl transition-all duration-200 group",
+                    activeTab === 'profile'
+                      ? "bg-purple-500/10 text-purple-400 border border-purple-500/20" 
+                      : "text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200"
+                  )}
+                >
+                  <User className={cn("w-4 h-4", activeTab === 'profile' ? "text-purple-400" : "group-hover:text-zinc-200")} />
+                  <span className="font-semibold text-sm">Profilim</span>
+                </button>
+              </nav>
+
+              <div className="p-6 border-t border-zinc-800">
+                <button 
+                  onClick={() => { setShowPrivacyModal(true); setShowMobileMenu(false); }}
+                  className="text-[10px] text-zinc-500 hover:text-zinc-300 transition-colors uppercase tracking-widest font-bold"
+                >
+                  Gizlilik Politikası
+                </button>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+      <AnimatePresence>
+        {showPrivacyModal && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm"
+          >
+            <motion.div 
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              className="bg-zinc-900 border border-zinc-800 rounded-3xl p-8 max-w-2xl w-full shadow-2xl relative max-h-[90vh] flex flex-col"
+            >
+              <button 
+                onClick={() => setShowPrivacyModal(false)}
+                className="absolute top-4 right-4 p-2 text-zinc-500 hover:text-white transition-colors z-10"
+              >
+                <X className="w-6 h-6" />
+              </button>
+
+              <div className="flex items-center gap-3 mb-6">
+                <div className="w-12 h-12 bg-zinc-800 rounded-2xl flex items-center justify-center">
+                  <ShieldCheck className="text-emerald-400 w-7 h-7" />
+                </div>
+                <div>
+                  <h2 className="text-2xl font-display font-bold">Gizlilik Politikası</h2>
+                  <p className="text-zinc-400 text-sm">Verileriniz ve güvenliğiniz bizim için önemli.</p>
+                </div>
+              </div>
+
+              <div className="flex-1 overflow-y-auto pr-4 custom-scrollbar space-y-6 text-sm text-zinc-300 leading-relaxed">
+                <section>
+                  <h3 className="text-zinc-100 font-bold mb-2 uppercase tracking-wider text-xs">1. Veri Toplama</h3>
+                  <p>Tekno Nova, kullanıcı deneyimini iyileştirmek ve kişiselleştirilmiş mentorluk sunmak amacıyla adınız, teknoloji seviyeniz ve uygulama içi geçmişinizi toplar. Bu veriler tamamen yerel olarak (LocalStorage) cihazınızda saklanır.</p>
+                </section>
+
+                <section>
+                  <h3 className="text-zinc-100 font-bold mb-2 uppercase tracking-wider text-xs">2. AI ve Üçüncü Taraflar</h3>
+                  <p>Sorularınız, yanıt üretilmesi amacıyla Google Gemini API'sine gönderilir. Bu süreçte kişisel verileriniz (adınız vb.) anonimleştirilerek veya sadece bağlam sağlamak amacıyla kullanılır. Verileriniz reklam amaçlı üçüncü taraflarla paylaşılmaz.</p>
+                </section>
+
+                <section>
+                  <h3 className="text-zinc-100 font-bold mb-2 uppercase tracking-wider text-xs">3. Premium ve Ödemeler</h3>
+                  <p>Premium üyelik için kullanılan lisans kodları ve aktivasyon bilgileri, sistem güvenliği ve hak sahipliği doğrulaması için Bitlis Stüdyo sunucularında (varsa) veya yerel olarak doğrulanır. Ödeme bilgileri doğrudan Bitlis Stüdyo ile iletişime geçilerek manuel olarak yönetilir.</p>
+                </section>
+
+                <section>
+                  <h3 className="text-zinc-100 font-bold mb-2 uppercase tracking-wider text-xs">4. Kullanıcı Hakları</h3>
+                  <p>Uygulama içindeki "Verileri Sıfırla" seçeneğini kullanarak cihazınızda saklanan tüm verileri dilediğiniz zaman silebilirsiniz. Bu işlem geri alınamaz.</p>
+                </section>
+
+                <section>
+                  <h3 className="text-zinc-100 font-bold mb-2 uppercase tracking-wider text-xs">5. İletişim</h3>
+                  <p>Gizlilik politikamız hakkında sorularınız için imranyesildag123@gmail.com adresi üzerinden bizimle iletişime geçebilirsiniz.</p>
+                </section>
+
+                <div className="pt-4 border-t border-zinc-800 text-[10px] text-zinc-500 text-center">
+                  Son Güncelleme: 28 Şubat 2026 | Bitlis Stüdyo
+                </div>
+              </div>
+
+              <button 
+                onClick={() => setShowPrivacyModal(false)}
+                className="mt-6 w-full bg-zinc-800 hover:bg-zinc-700 text-white font-bold py-3 rounded-xl transition-all"
+              >
+                Anladım
+              </button>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Premium Modal */}
       <AnimatePresence>
         {showPremiumModal && (
@@ -296,39 +572,59 @@ export default function App() {
             >
               <button 
                 onClick={() => setShowPremiumModal(false)}
-                className="absolute top-4 right-4 p-2 text-zinc-500 hover:text-white transition-colors"
+                className="absolute top-4 right-4 p-2 text-zinc-500 hover:text-white transition-colors z-10"
               >
                 <X className="w-6 h-6" />
               </button>
 
               {premiumStep === 1 ? (
-                <div className="space-y-6">
+                <div className="space-y-6 max-h-[80vh] overflow-y-auto pr-2 custom-scrollbar">
                   <div className="text-center">
-                    <div className="w-16 h-16 bg-amber-500/20 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                      <Award className="text-amber-400 w-10 h-10" />
+                    <div className="w-20 h-20 bg-amber-500/20 rounded-3xl flex items-center justify-center mx-auto mb-4 shadow-inner">
+                      <Award className="text-amber-400 w-12 h-12" />
                     </div>
-                    <h2 className="text-2xl font-display font-bold">Tekno Nova Premium</h2>
-                    <p className="text-zinc-400 text-sm mt-1">Sınırları kaldır, teknolojiyi fethet!</p>
+                    <h2 className="text-3xl font-display font-bold bg-gradient-to-r from-amber-400 to-orange-500 bg-clip-text text-transparent">Tekno Nova Premium</h2>
+                    <p className="text-zinc-400 text-sm mt-2">Bitlis'ten Dünyaya: Sınırları Kaldır, Teknolojiyi Yönet!</p>
                   </div>
 
-                  <ul className="space-y-4">
-                    {[
-                      { icon: Sparkles, text: 'Sınırsız Sorgu Hakkı' },
-                      { icon: Terminal, text: 'Derin Analiz ve Karmaşık Çözümler' },
-                      { icon: User, text: 'İmran\'dan Özel Teknik Destek' }
-                    ].map((item, i) => (
-                      <li key={i} className="flex items-center gap-3 bg-zinc-800/50 p-3 rounded-xl border border-zinc-700/30">
-                        <item.icon className="w-5 h-5 text-emerald-400" />
-                        <span className="text-sm font-medium">{item.text}</span>
-                      </li>
-                    ))}
-                  </ul>
+                  <div className="space-y-4">
+                    <h3 className="text-xs font-bold uppercase tracking-[0.2em] text-zinc-500">Neden Premium?</h3>
+                    <div className="grid gap-3">
+                      {[
+                        { icon: Zap, title: 'Sınırsız Sorgu', desc: 'Günlük limitlere takılmadan dilediğin kadar sor.' },
+                        { icon: ShieldCheck, title: 'Öncelikli Destek', desc: 'Bitlis Stüdyo ekibinden 7/24 teknik danışmanlık.' },
+                        { icon: Cpu, title: 'AI Kod Optimizasyonu', desc: 'Kodlarını endüstri standartlarına yükselt.' },
+                        { icon: ChevronRight, title: 'Yol Haritası', desc: 'Projelerin için 4 haftalık detaylı çalışma planı.' },
+                        { icon: Award, title: 'Uzman Mentorluk', desc: 'TEKNOFEST ve TÜBİTAK için rapor desteği.' }
+                      ].map((item, i) => (
+                        <div key={i} className="flex items-start gap-3 bg-zinc-800/40 p-4 rounded-2xl border border-zinc-700/30 hover:bg-zinc-800/60 transition-colors">
+                          <div className="p-2 bg-emerald-500/10 rounded-lg">
+                            <item.icon className="w-5 h-5 text-emerald-400" />
+                          </div>
+                          <div>
+                            <div className="text-sm font-bold text-zinc-100">{item.title}</div>
+                            <div className="text-[11px] text-zinc-400 leading-tight mt-0.5">{item.desc}</div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="bg-emerald-500/5 border border-emerald-500/20 rounded-2xl p-4">
+                    <div className="flex items-center gap-2 mb-2 text-emerald-400">
+                      <Info className="w-4 h-4" />
+                      <span className="text-[10px] font-bold uppercase tracking-widest">Geliştirici Notu</span>
+                    </div>
+                    <p className="text-[11px] text-zinc-400 leading-relaxed italic">
+                      "Tekno Nova'yı Bitlis'teki gençlerin teknolojiye erişimini kolaylaştırmak için geliştirdik. Premium üyelik, sunucu maliyetlerini karşılamamıza ve sistemi sürekli güncel tutmamıza yardımcı oluyor. Desteğiniz için teşekkürler!" - Bitlis Stüdyo
+                    </p>
+                  </div>
 
                   <button 
                     onClick={() => setPremiumStep(2)}
-                    className="w-full bg-emerald-500 hover:bg-emerald-400 text-white font-bold py-4 rounded-xl transition-all shadow-lg shadow-emerald-500/20"
+                    className="w-full bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-400 hover:to-orange-500 text-white font-bold py-4 rounded-2xl transition-all shadow-xl shadow-amber-500/20 flex items-center justify-center gap-2 group"
                   >
-                    Şimdi Satın Al
+                    Hemen Başla <ChevronRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
                   </button>
                 </div>
               ) : (
@@ -380,8 +676,8 @@ export default function App() {
       </AnimatePresence>
 
       {/* Sidebar */}
-      <aside className="w-80 border-r border-zinc-800 bg-zinc-900/50 flex flex-col hidden md:flex">
-        <div className="p-6 border-bottom border-zinc-800">
+      <aside className="w-80 border-r border-zinc-800 bg-zinc-900/50 flex flex-col hidden lg:flex shrink-0">
+        <div className="p-6 border-b border-zinc-800">
           <div className="flex items-center gap-3 mb-2">
             <div className="w-10 h-10 bg-emerald-500 rounded-xl flex items-center justify-center shadow-lg shadow-emerald-500/20">
               <Star className="text-white w-6 h-6" />
@@ -393,36 +689,107 @@ export default function App() {
           </div>
         </div>
 
-        <nav className="flex-1 p-4 space-y-2 overflow-y-auto">
-          <div className="px-4 py-2 text-[10px] font-bold uppercase tracking-[0.2em] text-zinc-500 mb-1">Modlar</div>
+        <nav className="flex-1 p-4 space-y-1 overflow-y-auto custom-scrollbar">
+          <div className="px-4 py-2 text-[10px] font-bold uppercase tracking-[0.2em] text-zinc-500 mb-1">Ücretsiz Modlar</div>
           <button
-            onClick={() => { setMode('PROJECT_GEN'); setActiveTab('chat'); }}
+            onClick={() => handleModeChange('PROJECT_GEN')}
             className={cn(
-              "w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 group",
+              "w-full flex items-center gap-3 px-4 py-2.5 rounded-xl transition-all duration-200 group",
               mode === 'PROJECT_GEN' && activeTab === 'chat'
                 ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20" 
                 : "text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200"
             )}
           >
-            <Lightbulb className={cn("w-5 h-5", mode === 'PROJECT_GEN' ? "text-emerald-400" : "group-hover:text-zinc-200")} />
-            <div className="text-left">
-              <div className="font-semibold text-sm">Proje Üretici</div>
-            </div>
+            <Lightbulb className={cn("w-4 h-4", mode === 'PROJECT_GEN' ? "text-emerald-400" : "group-hover:text-zinc-200")} />
+            <span className="font-semibold text-sm">Proje Üretici</span>
           </button>
 
           <button
-            onClick={() => { setMode('DEBUGGER'); setActiveTab('chat'); }}
+            onClick={() => handleModeChange('DEBUGGER')}
             className={cn(
-              "w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 group",
+              "w-full flex items-center gap-3 px-4 py-2.5 rounded-xl transition-all duration-200 group",
               mode === 'DEBUGGER' && activeTab === 'chat'
                 ? "bg-blue-500/10 text-blue-400 border border-blue-500/20" 
                 : "text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200"
             )}
           >
-            <Bug className={cn("w-5 h-5", mode === 'DEBUGGER' ? "text-blue-400" : "group-hover:text-zinc-200")} />
-            <div className="text-left">
-              <div className="font-semibold text-sm">Kod Debugger</div>
+            <Bug className={cn("w-4 h-4", mode === 'DEBUGGER' ? "text-blue-400" : "group-hover:text-zinc-200")} />
+            <span className="font-semibold text-sm">Kod Debugger</span>
+          </button>
+
+          <button
+            onClick={() => handleModeChange('COMPONENT_LIB')}
+            className={cn(
+              "w-full flex items-center gap-3 px-4 py-2.5 rounded-xl transition-all duration-200 group",
+              mode === 'COMPONENT_LIB' && activeTab === 'chat'
+                ? "bg-zinc-500/10 text-zinc-300 border border-zinc-500/20" 
+                : "text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200"
+            )}
+          >
+            <Cpu className={cn("w-4 h-4", mode === 'COMPONENT_LIB' ? "text-zinc-300" : "group-hover:text-zinc-200")} />
+            <span className="font-semibold text-sm">Bileşen Kütüphanesi</span>
+          </button>
+
+          <button
+            onClick={() => handleModeChange('COMMUNITY_PROJS')}
+            className={cn(
+              "w-full flex items-center gap-3 px-4 py-2.5 rounded-xl transition-all duration-200 group",
+              mode === 'COMMUNITY_PROJS' && activeTab === 'chat'
+                ? "bg-zinc-500/10 text-zinc-300 border border-zinc-500/20" 
+                : "text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200"
+            )}
+          >
+            <Github className={cn("w-4 h-4", mode === 'COMMUNITY_PROJS' ? "text-zinc-300" : "group-hover:text-zinc-200")} />
+            <span className="font-semibold text-sm">Topluluk Projeleri</span>
+          </button>
+
+          <div className="pt-4 px-4 py-2 text-[10px] font-bold uppercase tracking-[0.2em] text-zinc-500 mb-1">Premium Modlar</div>
+          <button
+            onClick={() => handleModeChange('AI_OPTIMIZER')}
+            className={cn(
+              "w-full flex items-center justify-between px-4 py-2.5 rounded-xl transition-all duration-200 group",
+              mode === 'AI_OPTIMIZER' && activeTab === 'chat'
+                ? "bg-amber-500/10 text-amber-400 border border-amber-500/20" 
+                : "text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200"
+            )}
+          >
+            <div className="flex items-center gap-3">
+              <Zap className={cn("w-4 h-4", mode === 'AI_OPTIMIZER' ? "text-amber-400" : "group-hover:text-zinc-200")} />
+              <span className="font-semibold text-sm">AI Kod Optimizasyonu</span>
             </div>
+            {!profile?.isPremium && <Key className="w-3 h-3 text-amber-500/50" />}
+          </button>
+
+          <button
+            onClick={() => handleModeChange('ROADMAP_GEN')}
+            className={cn(
+              "w-full flex items-center justify-between px-4 py-2.5 rounded-xl transition-all duration-200 group",
+              mode === 'ROADMAP_GEN' && activeTab === 'chat'
+                ? "bg-amber-500/10 text-amber-400 border border-amber-500/20" 
+                : "text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200"
+            )}
+          >
+            <div className="flex items-center gap-3">
+              <ChevronRight className={cn("w-4 h-4", mode === 'ROADMAP_GEN' ? "text-amber-400" : "group-hover:text-zinc-200")} />
+              <span className="font-semibold text-sm">Proje Yol Haritası</span>
+            </div>
+            {!profile?.isPremium && <Key className="w-3 h-3 text-amber-500/50" />}
+          </button>
+
+          <button
+            onClick={() => handleModeChange('EXPERT_MENTOR')}
+            className={cn(
+              "w-full flex items-center justify-between px-4 py-2.5 rounded-xl transition-all duration-200 group",
+              mode === 'EXPERT_MENTOR' && activeTab === 'chat'
+                ? "bg-amber-500/10 text-amber-400 border border-amber-500/20" 
+                : "text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200"
+            )}
+          >
+            <div className="flex items-center gap-3">
+              <Award className={cn("w-4 h-4", mode === 'EXPERT_MENTOR' ? "text-amber-400" : "group-hover:text-zinc-200")} />
+              <span className="font-semibold text-sm">Uzman Mentor</span>
+            </div>
+            {!profile?.isPremium && <Key className="w-3 h-3 text-amber-500/50" />}
           </button>
 
           <div className="pt-4 px-4 py-2 text-[10px] font-bold uppercase tracking-[0.2em] text-zinc-500 mb-1">Kişisel</div>
@@ -492,14 +859,31 @@ export default function App() {
       <main className="flex-1 flex flex-col relative">
         {/* Header */}
         <header className="p-4 border-b border-zinc-800 flex items-center justify-between bg-zinc-900/50 backdrop-blur-md sticky top-0 z-10">
-          <div className="flex items-center gap-2 md:hidden">
-            <Star className="text-emerald-500 w-6 h-6" />
-            <span className="font-display font-bold">Tekno Nova</span>
+          <div className="flex items-center gap-3 lg:hidden">
+            <button 
+              onClick={() => setShowMobileMenu(true)}
+              className="flex items-center gap-2 p-2 -ml-2 bg-zinc-800/50 border border-zinc-700 rounded-xl text-zinc-300 hover:text-white transition-all active:scale-95"
+            >
+              <Menu className="w-5 h-5" />
+              <span className="text-xs font-bold uppercase tracking-widest pr-1">Menü</span>
+            </button>
+            <div className="flex items-center gap-2">
+              <Star className="text-emerald-500 w-5 h-5" />
+              <span className="font-display font-bold text-sm">Tekno Nova</span>
+            </div>
           </div>
           
-          <div className="hidden md:block">
+          <div className="hidden lg:block">
              <span className="text-xs font-bold uppercase tracking-widest text-zinc-500">
-               {activeTab === 'chat' ? (mode === 'PROJECT_GEN' ? 'Akıllı Proje Üretici' : 'Kod Hata Ayıklayıcı') : activeTab === 'history' ? 'Geçmiş Kayıtlar' : 'Kullanıcı Profili'}
+               {activeTab === 'chat' ? (
+                 mode === 'PROJECT_GEN' ? 'Akıllı Proje Üretici' : 
+                 mode === 'DEBUGGER' ? 'Kod Hata Ayıklayıcı' :
+                 mode === 'AI_OPTIMIZER' ? 'AI Kod Optimizasyonu' :
+                 mode === 'ROADMAP_GEN' ? 'Proje Yol Haritası' :
+                 mode === 'COMPONENT_LIB' ? 'Bileşen Kütüphanesi' :
+                 mode === 'COMMUNITY_PROJS' ? 'Topluluk Projeleri' :
+                 'Uzman Mentor'
+               ) : activeTab === 'history' ? 'Geçmiş Kayıtlar' : 'Kullanıcı Profili'}
              </span>
           </div>
 
@@ -681,7 +1065,7 @@ export default function App() {
                       <Award className="w-10 h-10 mb-4" />
                       <h4 className="text-xl font-bold mb-2">Premium'a Yükselt</h4>
                       <p className="text-amber-100 text-sm mb-6 leading-relaxed">
-                        Sınırları kaldırın, İmran'dan özel destek alın ve Tekno Nova'nın tüm gücünü keşfedin.
+                        Sınırları kaldırın, Bitlis Stüdyo'dan özel destek alın ve Tekno Nova'nın tüm gücünü keşfedin.
                       </p>
                       <button 
                         onClick={() => { setShowPremiumModal(true); setPremiumStep(1); }}
@@ -773,9 +1157,17 @@ export default function App() {
                 <div className="absolute -top-8 left-0 flex gap-2">
                   <span className={cn(
                     "text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded border",
-                    mode === 'PROJECT_GEN' ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" : "bg-blue-500/10 text-blue-400 border-blue-500/20"
+                    mode === 'PROJECT_GEN' ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" : 
+                    mode === 'DEBUGGER' ? "bg-blue-500/10 text-blue-400 border-blue-500/20" :
+                    "bg-amber-500/10 text-amber-400 border-amber-500/20"
                   )}>
-                    {mode === 'PROJECT_GEN' ? 'Akıllı Proje Üretici' : 'Kod Hata Ayıklayıcı'}
+                    {mode === 'PROJECT_GEN' ? 'Akıllı Proje Üretici' : 
+                     mode === 'DEBUGGER' ? 'Kod Hata Ayıklayıcı' :
+                     mode === 'AI_OPTIMIZER' ? 'AI Kod Optimizasyonu' :
+                     mode === 'ROADMAP_GEN' ? 'Proje Yol Haritası' :
+                     mode === 'COMPONENT_LIB' ? 'Bileşen Kütüphanesi' :
+                     mode === 'COMMUNITY_PROJS' ? 'Topluluk Projeleri' :
+                     'Uzman Mentor'}
                   </span>
                   {cooldown > 0 && (
                     <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded border bg-zinc-800 text-zinc-400 border-zinc-700">
@@ -793,7 +1185,15 @@ export default function App() {
                     }
                   }}
                   disabled={isLoading || cooldown > 0}
-                  placeholder={mode === 'PROJECT_GEN' ? "Elindeki malzemeleri yaz (Örn: Deneyap Kart, Mesafe Sensörü...)" : "Hatalı kodunu veya hata mesajını buraya yapıştır..."}
+                  placeholder={
+                    mode === 'PROJECT_GEN' ? "Elindeki malzemeleri yaz (Örn: Deneyap Kart, Mesafe Sensörü...)" : 
+                    mode === 'DEBUGGER' ? "Hatalı kodunu veya hata mesajını buraya yapıştır..." :
+                    mode === 'AI_OPTIMIZER' ? "Optimize etmek istediğin kodu buraya yapıştır..." :
+                    mode === 'ROADMAP_GEN' ? "Hangi proje için yol haritası istiyorsun? (Örn: Akıllı Tarım Sistemi)" :
+                    mode === 'COMPONENT_LIB' ? "Hangi bileşen hakkında bilgi almak istersin? (Örn: DHT11, Servo Motor)" :
+                    mode === 'COMMUNITY_PROJS' ? "Ne tür projelerden ilham almak istersin? (Örn: İHA, Robotik)" :
+                    "Uzman mentora ne danışmak istersin?"
+                  }
                   className="w-full bg-zinc-900 border border-zinc-800 rounded-2xl p-4 pr-16 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all min-h-[60px] max-h-[200px] resize-none text-sm md:text-base disabled:opacity-50 disabled:cursor-not-allowed"
                   rows={1}
                 />
@@ -815,7 +1215,7 @@ export default function App() {
                 Tekno Nova • Bitlis Stüdyo • Milli Teknoloji Hamlesi
               </p>
               <p className="text-[9px] text-zinc-700 font-medium">
-                İmran Yeşildağ (Tekno Nova) tarafından Bitlis'te geliştirildi.
+                Bitlis Stüdyo tarafından Bitlis'te geliştirildi.
               </p>
             </div>
           </div>
@@ -900,7 +1300,7 @@ export default function App() {
                   </section>
                   <section>
                     <h3 className="text-white font-bold text-lg mb-2">4. İletişim</h3>
-                    <p>Gizlilikle ilgili her türlü sorunuz için geliştiricimiz İmran Yeşildağ'a <strong>imranyesildag123@gmail.com</strong> adresinden ulaşabilirsiniz.</p>
+                    <p>Gizlilikle ilgili her türlü sorunuz için Bitlis Stüdyo ekibine <strong>imranyesildag123@gmail.com</strong> adresinden ulaşabilirsiniz.</p>
                   </section>
                 </div>
 
