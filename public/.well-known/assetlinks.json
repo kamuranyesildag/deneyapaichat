@@ -3,6 +3,6 @@
   "target": {
     "namespace": "android_app",
     "package_name": "app.bitlisstudyo.deneyapai.twa",
-    "sha256_cert_fingerprints": ["16:F6:70:C6:76:9C:A8:7F:26:8E:E0:80:C5:A3:79:42:26:A0:52:8F:11:EC:00:96:33:47:DE:70:24:C4:21:AB"]
+    "sha256_cert_fingerprints": ["58:EC:6E:FA:87:C5:96:AD:57:54:4D:2D:E5:12:79:FB:7D:85:99:A3:38:90:72:5C:F5:EE:EB:D1:45:96:61:A6"]
   }
 }]

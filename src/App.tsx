@@ -8,7 +8,7 @@ import {
   Lightbulb, 
   ChevronRight,
   Github,
-  Rocket,
+  Star,
   Code2,
   MessageSquare,
   Info,
@@ -233,7 +233,7 @@ export default function App() {
             >
               <div className="flex items-center gap-3 mb-6">
                 <div className="w-12 h-12 bg-emerald-500 rounded-2xl flex items-center justify-center">
-                  <Rocket className="text-white w-7 h-7" />
+                  <Star className="text-white w-7 h-7" />
                 </div>
                 <div>
                   <h2 className="text-2xl font-display font-bold">Tekno Nova'ya Katıl</h2>
@@ -384,7 +384,7 @@ export default function App() {
         <div className="p-6 border-bottom border-zinc-800">
           <div className="flex items-center gap-3 mb-2">
             <div className="w-10 h-10 bg-emerald-500 rounded-xl flex items-center justify-center shadow-lg shadow-emerald-500/20">
-              <Rocket className="text-white w-6 h-6" />
+              <Star className="text-white w-6 h-6" />
             </div>
             <div>
               <h1 className="font-display font-bold text-xl tracking-tight">Tekno Nova</h1>
@@ -493,7 +493,7 @@ export default function App() {
         {/* Header */}
         <header className="p-4 border-b border-zinc-800 flex items-center justify-between bg-zinc-900/50 backdrop-blur-md sticky top-0 z-10">
           <div className="flex items-center gap-2 md:hidden">
-            <Rocket className="text-emerald-500 w-6 h-6" />
+            <Star className="text-emerald-500 w-6 h-6" />
             <span className="font-display font-bold">Tekno Nova</span>
           </div>
           
