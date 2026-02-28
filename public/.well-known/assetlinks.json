@@ -1,0 +1,8 @@
+[{
+  "relation": ["delegate_permission/common.handle_all_urls"],
+  "target": {
+    "namespace": "android_app",
+    "package_name": "app.bitlisstudyo.deneyapai.twa",
+    "sha256_cert_fingerprints": ["16:F6:70:C6:76:9C:A8:7F:26:8E:E0:80:C5:A3:79:42:26:A0:52:8F:11:EC:00:96:33:47:DE:70:24:C4:21:AB"]
+  }
+}]
