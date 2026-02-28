@@ -856,7 +856,7 @@ export default function App() {
       </aside>
 
       {/* Main Content */}
-      <main className="flex-1 flex flex-col relative">
+      <main className="flex-1 flex flex-col relative pb-24 lg:pb-0">
         {/* Header */}
         <header className="p-4 border-b border-zinc-800 flex items-center justify-between bg-zinc-900/50 backdrop-blur-md sticky top-0 z-10">
           <div className="flex items-center gap-3 lg:hidden">
@@ -1109,6 +1109,13 @@ export default function App() {
                         Uygulamayı Paylaş
                       </button>
                       <button 
+                        onClick={() => setShowPrivacyModal(true)}
+                        className="w-full flex items-center justify-center gap-2 text-zinc-500 hover:text-zinc-300 text-[10px] font-bold p-2 uppercase tracking-widest transition-all"
+                      >
+                        <ShieldCheck className="w-3 h-3" />
+                        Gizlilik Politikası
+                      </button>
+                      <button 
                         onClick={() => {
                           if (confirm('Tüm verilerin silinecek. Emin misin?')) {
                             localStorage.clear();
@@ -1223,7 +1230,7 @@ export default function App() {
       </main>
 
       {/* Mobile Navigation */}
-      <div className="md:hidden fixed bottom-0 left-0 right-0 bg-zinc-900/80 backdrop-blur-lg border-t border-zinc-800 px-6 py-3 flex items-center justify-between z-50">
+      <div className="lg:hidden fixed bottom-0 left-0 right-0 bg-zinc-900/80 backdrop-blur-lg border-t border-zinc-800 px-6 py-3 flex items-center justify-between z-50">
         <button 
           onClick={() => { setMode('PROJECT_GEN'); setActiveTab('chat'); }}
           className={cn("flex flex-col items-center gap-1", mode === 'PROJECT_GEN' && activeTab === 'chat' ? "text-emerald-400" : "text-zinc-500")}
