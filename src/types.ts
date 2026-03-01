@@ -18,6 +18,12 @@ export interface UserProfile {
   deviceId?: string;
   securityVerified?: boolean;
   email?: string;
+  achievements?: string[];
+  stats?: {
+    projectsGenerated: number;
+    bugsFixed: number;
+    codeOptimized: number;
+  };
 }
 
 export interface HistoryItem {

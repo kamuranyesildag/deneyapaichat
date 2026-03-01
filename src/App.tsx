@@ -18,9 +18,11 @@ import {
   History as HistoryIcon,
   Award,
   LogOut,
+  Trash2,
   X,
   ShieldCheck,
   Zap,
+  Settings,
   Key,
   ArrowLeft,
   AlertCircle,
@@ -119,10 +121,27 @@ export default function App() {
       if (auth) {
         await signOut(auth);
       }
-      localStorage.clear();
+      // Just sign out of Firebase, but keep local profile if they want?
+      // Actually, standard logout should clear the session.
+      localStorage.removeItem('tekno_nova_profile');
+      localStorage.removeItem('tekno_nova_history');
       window.location.reload();
     } catch (error) {
       console.error("Logout Error:", error);
+    }
+  };
+
+  const handleDeleteAccount = async () => {
+    if (window.confirm('Tüm verileriniz (mesajlar, başarımlar, istatistikler) kalıcı olarak silinecektir. Bu işlemi onaylıyor musunuz?')) {
+      try {
+        if (auth) {
+          await signOut(auth);
+        }
+        localStorage.clear();
+        window.location.reload();
+      } catch (error) {
+        console.error("Delete Account Error:", error);
+      }
     }
   };
   
@@ -170,7 +189,9 @@ export default function App() {
         lastLogin: Date.now(),
         deviceId: parsedProfile.deviceId || Math.random().toString(36).substring(7),
         securityVerified: true,
-        subscriptionTier: parsedProfile.subscriptionTier || (parsedProfile.isPremium ? 'PRO' : 'FREE')
+        subscriptionTier: parsedProfile.subscriptionTier || (parsedProfile.isPremium ? 'PRO' : 'FREE'),
+        stats: parsedProfile.stats || { projectsGenerated: 0, bugsFixed: 0, codeOptimized: 0 },
+        achievements: parsedProfile.achievements || []
       };
       setProfile(updatedProfile);
       localStorage.setItem('tekno_nova_profile', JSON.stringify(updatedProfile));
@@ -283,8 +304,30 @@ export default function App() {
     setUsageCount(newUsageCount);
     localStorage.setItem('tekno_nova_usage', JSON.stringify({ date: today, count: newUsageCount }));
 
-    // Update profile total questions
-    const newProfile = { ...profile, totalQuestions: profile.totalQuestions + 1 };
+    // Update profile stats
+    const updatedStats = {
+      projectsGenerated: (profile.stats?.projectsGenerated || 0) + (mode === 'PROJECT_GEN' ? 1 : 0),
+      bugsFixed: (profile.stats?.bugsFixed || 0) + (mode === 'DEBUGGER' ? 1 : 0),
+      codeOptimized: (profile.stats?.codeOptimized || 0) + (mode === 'AI_OPTIMIZER' ? 1 : 0),
+    };
+
+    let newAchievements = [...(profile.achievements || [])];
+    if (profile.totalQuestions + 1 === 1 && !newAchievements.includes('İlk Adım')) {
+      newAchievements.push('İlk Adım');
+    }
+    if (updatedStats.projectsGenerated === 5 && !newAchievements.includes('Proje Mimarı')) {
+      newAchievements.push('Proje Mimarı');
+    }
+    if (updatedStats.bugsFixed === 5 && !newAchievements.includes('Hata Avcısı')) {
+      newAchievements.push('Hata Avcısı');
+    }
+
+    const newProfile: UserProfile = { 
+      ...profile, 
+      totalQuestions: profile.totalQuestions + 1,
+      stats: updatedStats,
+      achievements: newAchievements
+    };
     setProfile(newProfile);
     localStorage.setItem('tekno_nova_profile', JSON.stringify(newProfile));
 
@@ -1224,95 +1267,138 @@ export default function App() {
               )}
             </div>
           ) : (
-            <div className="p-4 md:p-8 max-w-4xl mx-auto space-y-8">
+            <div className="p-4 md:p-8 max-w-6xl mx-auto space-y-8">
               <div className="flex items-center gap-3 mb-6">
-                <User className="text-purple-400 w-6 h-6" />
+                <User className="text-emerald-400 w-6 h-6" />
                 <h2 className="text-2xl font-display font-bold">Profilim</h2>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="bg-zinc-900 border border-zinc-800 rounded-3xl p-8 flex flex-col items-center text-center">
-                  <div className="w-24 h-24 bg-zinc-800 border-4 border-emerald-500/20 rounded-full flex items-center justify-center text-emerald-400 mb-4 shadow-xl">
-                    <User className="w-12 h-12" />
-                  </div>
-                  <h3 className="text-2xl font-bold">{profile?.name}</h3>
-                  <div className={cn("text-sm font-bold mt-1 flex items-center gap-1", badge?.color)}>
-                    {badge && <badge.icon className="w-4 h-4" />}
-                    {badge?.name}
-                  </div>
-                  
-                  <div className="mt-6 w-full space-y-3">
-                    <div className="flex justify-between items-center p-3 bg-zinc-800/50 rounded-xl border border-zinc-700/30">
-                      <span className="text-zinc-400 text-xs font-bold uppercase tracking-wider">Seviye</span>
-                      <span className="text-emerald-400 font-bold">{profile?.level}</span>
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <div className="lg:col-span-1 space-y-6">
+                  <div className="bg-zinc-900 border border-zinc-800 rounded-3xl p-8 flex flex-col items-center text-center">
+                    <div className="w-24 h-24 bg-zinc-800 border-4 border-emerald-500/20 rounded-full flex items-center justify-center text-emerald-400 mb-4 shadow-xl relative group">
+                      <User className="w-12 h-12" />
+                      <div className="absolute -bottom-1 -right-1 bg-emerald-500 text-black p-1.5 rounded-full shadow-lg">
+                        <ShieldCheck className="w-4 h-4" />
+                      </div>
                     </div>
-                    <div className="flex justify-between items-center p-3 bg-zinc-800/50 rounded-xl border border-zinc-700/30">
-                      <span className="text-zinc-400 text-xs font-bold uppercase tracking-wider">Toplam Soru</span>
-                      <span className="text-blue-400 font-bold">{profile?.totalQuestions}</span>
+                    <h3 className="text-2xl font-bold">{profile?.name}</h3>
+                    <div className={cn("text-sm font-bold mt-1 flex items-center gap-1", badge?.color)}>
+                      {badge && <badge.icon className="w-4 h-4" />}
+                      {badge?.name}
                     </div>
-                    <div className="flex justify-between items-center p-3 bg-zinc-800/50 rounded-xl border border-zinc-700/30">
-                      <span className="text-zinc-400 text-xs font-bold uppercase tracking-wider">Üyelik Tipi</span>
-                      <span className={cn("font-bold", 
-                        profile?.subscriptionTier === 'PRO' ? "text-amber-400" : 
-                        profile?.subscriptionTier === 'BASIC' ? "text-blue-400" : "text-zinc-500"
-                      )}>
-                        {profile?.subscriptionTier === 'PRO' ? 'Pro Sürüm' : 
-                         profile?.subscriptionTier === 'BASIC' ? 'Basit Sürüm' : 'Ücretsiz'}
-                      </span>
+                    
+                    <div className="mt-6 w-full space-y-3">
+                      <div className="flex justify-between items-center p-3 bg-zinc-800/50 rounded-xl border border-zinc-700/30">
+                        <span className="text-zinc-400 text-xs font-bold uppercase tracking-wider">Seviye</span>
+                        <span className="text-emerald-400 font-bold">{profile?.level}</span>
+                      </div>
+                      <div className="flex justify-between items-center p-3 bg-zinc-800/50 rounded-xl border border-zinc-700/30">
+                        <span className="text-zinc-400 text-xs font-bold uppercase tracking-wider">Toplam Soru</span>
+                        <span className="text-blue-400 font-bold">{profile?.totalQuestions}</span>
+                      </div>
+                      <div className="flex justify-between items-center p-3 bg-zinc-800/50 rounded-xl border border-zinc-700/30">
+                        <span className="text-zinc-400 text-xs font-bold uppercase tracking-wider">Üyelik Tipi</span>
+                        <span className={cn("font-bold", 
+                          profile?.subscriptionTier === 'PRO' ? "text-amber-400" : 
+                          profile?.subscriptionTier === 'BASIC' ? "text-blue-400" : "text-zinc-500"
+                        )}>
+                          {profile?.subscriptionTier === 'PRO' ? 'Pro Sürüm' : 
+                           profile?.subscriptionTier === 'BASIC' ? 'Basit Sürüm' : 'Ücretsiz'}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="bg-zinc-900 border border-zinc-800 rounded-3xl p-6">
+                    <h4 className="text-sm font-bold text-zinc-500 uppercase tracking-widest mb-4 flex items-center gap-2">
+                      <Award className="w-4 h-4" />
+                      Başarımlar
+                    </h4>
+                    <div className="flex flex-wrap gap-2">
+                      {profile?.achievements && profile.achievements.length > 0 ? (
+                        profile.achievements.map((ach, i) => (
+                          <span key={i} className="px-3 py-1.5 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-bold rounded-lg flex items-center gap-1.5">
+                            <Sparkles className="w-3 h-3" />
+                            {ach}
+                          </span>
+                        ))
+                      ) : (
+                        <p className="text-zinc-600 text-xs italic">Henüz başarım kazanılmadı. İlk sorunu sor!</p>
+                      )}
                     </div>
                   </div>
                 </div>
 
-                <div className="space-y-6">
+                <div className="lg:col-span-2 space-y-6">
+                  <div className="bg-zinc-900 border border-zinc-800 rounded-3xl p-8">
+                    <h4 className="text-lg font-bold mb-6 flex items-center gap-2">
+                      <Zap className="w-5 h-5 text-amber-400" />
+                      Kullanım İstatistikleri
+                    </h4>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                      <div className="p-4 bg-zinc-800/30 rounded-2xl border border-zinc-700/30">
+                        <div className="text-zinc-500 text-[10px] font-bold uppercase tracking-wider mb-1">Üretilen Projeler</div>
+                        <div className="text-2xl font-bold text-white">{profile?.stats?.projectsGenerated || 0}</div>
+                      </div>
+                      <div className="p-4 bg-zinc-800/30 rounded-2xl border border-zinc-700/30">
+                        <div className="text-zinc-500 text-[10px] font-bold uppercase tracking-wider mb-1">Çözülen Hatalar</div>
+                        <div className="text-2xl font-bold text-white">{profile?.stats?.bugsFixed || 0}</div>
+                      </div>
+                      <div className="p-4 bg-zinc-800/30 rounded-2xl border border-zinc-700/30">
+                        <div className="text-zinc-500 text-[10px] font-bold uppercase tracking-wider mb-1">Optimizasyonlar</div>
+                        <div className="text-2xl font-bold text-white">{profile?.stats?.codeOptimized || 0}</div>
+                      </div>
+                    </div>
+                  </div>
+
                   {profile?.subscriptionTier !== 'PRO' ? (
-                    <div className="bg-gradient-to-br from-amber-500 to-orange-600 rounded-3xl p-8 text-white shadow-xl shadow-amber-500/20">
+                    <div className="bg-gradient-to-br from-amber-500 to-orange-600 rounded-3xl p-8 text-white shadow-xl shadow-amber-500/20 relative overflow-hidden group">
+                      <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -mr-16 -mt-16 blur-2xl group-hover:bg-white/20 transition-all"></div>
                       <Award className="w-10 h-10 mb-4" />
                       <h4 className="text-xl font-bold mb-2">
                         {profile?.subscriptionTier === 'BASIC' ? 'Pro\'ya Yükselt' : 'Premium\'a Yükselt'}
                       </h4>
-                      <p className="text-amber-100 text-sm mb-6 leading-relaxed">
+                      <p className="text-amber-100 text-sm mb-6 leading-relaxed max-w-md">
                         {profile?.subscriptionTier === 'BASIC' 
                           ? 'Sınırsız mesaj ve tüm kilitli modlara erişmek için Pro sürümüne geçin.'
-                          : 'Sınırları kaldırın, Bitlis Stüdyo\'dan özel destek alın ve Tekno Nova\'nın tüm gücünü keşfedin.'}
+                           : 'Sınırları kaldırın, Bitlis Stüdyo\'dan özel destek alın ve Tekno Nova\'nın tüm gücünü keşfedin.'}
                       </p>
                       <button 
                         onClick={() => { setShowPremiumModal(true); setPremiumStep(1); }}
-                        className="w-full bg-white text-amber-600 font-bold py-3 rounded-xl hover:bg-amber-50 transition-all shadow-lg"
+                        className="w-full sm:w-auto px-8 bg-white text-amber-600 font-bold py-3 rounded-xl hover:bg-amber-50 transition-all shadow-lg"
                       >
                         {profile?.subscriptionTier === 'BASIC' ? 'Pro\'ya Geç' : 'Hemen Yükselt'}
                       </button>
                     </div>
                   ) : (
-                    <div className="bg-zinc-900 border border-emerald-500/20 rounded-3xl p-8 border-dashed">
-                      <Sparkles className="text-emerald-400 w-10 h-10 mb-4" />
-                      <h4 className="text-xl font-bold text-emerald-400 mb-2">Premium Aktif</h4>
-                      <p className="text-zinc-400 text-sm leading-relaxed">
-                        Sınırsız erişim ve tüm özellikler açık. Teknoloji fatihi olarak yoluna devam et!
-                      </p>
+                    <div className="bg-zinc-900 border border-emerald-500/20 rounded-3xl p-8 border-dashed flex items-center gap-6">
+                      <div className="bg-emerald-500/10 p-4 rounded-2xl border border-emerald-500/20">
+                        <Sparkles className="text-emerald-400 w-8 h-8" />
+                      </div>
+                      <div>
+                        <h4 className="text-xl font-bold text-emerald-400 mb-1">Premium Aktif</h4>
+                        <p className="text-zinc-400 text-sm leading-relaxed">
+                          Sınırsız erişim ve tüm özellikler açık. Teknoloji fatihi olarak yoluna devam et!
+                        </p>
+                      </div>
                     </div>
                   )}
 
                   <div className="bg-zinc-900 border border-zinc-800 rounded-3xl p-8">
-                    <h4 className="text-lg font-bold mb-4 flex items-center gap-2">
-                      <Info className="w-5 h-5 text-zinc-500" />
-                      Hesap Ayarları
+                    <h4 className="text-lg font-bold mb-6 flex items-center gap-2">
+                      <Settings className="w-5 h-5 text-zinc-500" />
+                      Hesap ve Ayarlar
                     </h4>
-                    <div className="space-y-3">
-                      {isFirebaseConfigured ? (
-                        !firebaseUser && (
-                          <button 
-                            onClick={handleGoogleSignIn}
-                            className="w-full flex items-center justify-center gap-2 text-zinc-900 bg-white hover:bg-zinc-100 text-sm font-bold p-3 rounded-xl transition-all"
-                          >
-                            <img src="https://www.google.com/favicon.ico" className="w-4 h-4" alt="Google" />
-                            Google ile Bağlan
-                          </button>
-                        )
-                      ) : (
-                        <div className="p-3 bg-amber-500/5 border border-amber-500/10 rounded-xl text-center">
-                          <p className="text-[10px] text-amber-500/60 font-bold uppercase tracking-widest mb-1">Bulut Senkronizasyonu Kapalı</p>
-                          <p className="text-[9px] text-zinc-500">Netlify panelinden Firebase ayarlarını yaparak bulut kaydını aktif edebilirsiniz.</p>
-                        </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      {isFirebaseConfigured && !firebaseUser && (
+                        <button 
+                          onClick={handleGoogleSignIn}
+                          className="flex items-center justify-center gap-2 text-zinc-900 bg-white hover:bg-zinc-100 text-sm font-bold p-3 rounded-xl transition-all"
+                        >
+                          <img src="https://www.google.com/favicon.ico" className="w-4 h-4" alt="Google" />
+                          Google ile Bağlan
+                        </button>
                       )}
                       <button 
                         onClick={() => {
@@ -1327,26 +1413,39 @@ export default function App() {
                             alert('Uygulama linki kopyalandı!');
                           }
                         }}
-                        className="w-full flex items-center justify-center gap-2 text-zinc-300 hover:text-white text-sm font-bold p-3 rounded-xl border border-zinc-700 hover:bg-zinc-800 transition-all"
+                        className="flex items-center justify-center gap-2 text-zinc-300 hover:text-white text-sm font-bold p-3 rounded-xl border border-zinc-700 hover:bg-zinc-800 transition-all"
                       >
                         <Sparkles className="w-4 h-4 text-emerald-400" />
                         Uygulamayı Paylaş
                       </button>
                       <button 
                         onClick={() => setShowPrivacyModal(true)}
-                        className="w-full flex items-center justify-center gap-2 text-zinc-500 hover:text-zinc-300 text-[10px] font-bold p-2 uppercase tracking-widest transition-all"
+                        className="flex items-center justify-center gap-2 text-zinc-400 hover:text-zinc-200 text-xs font-bold p-3 rounded-xl border border-zinc-800 hover:bg-zinc-800/50 transition-all"
                       >
-                        <ShieldCheck className="w-3 h-3" />
+                        <ShieldCheck className="w-4 h-4" />
                         Gizlilik Politikası
                       </button>
                       <button 
                         onClick={handleLogout}
-                        className="w-full flex items-center justify-center gap-2 text-red-400 hover:text-red-300 text-sm font-bold p-3 rounded-xl border border-red-500/20 hover:bg-red-500/5 transition-all"
+                        className="flex items-center justify-center gap-2 text-zinc-300 hover:text-white text-sm font-bold p-3 rounded-xl border border-zinc-700 hover:bg-zinc-800 transition-all"
                       >
                         <LogOut className="w-4 h-4" />
-                        Verileri Sıfırla ve Çıkış Yap
+                        Çıkış Yap
+                      </button>
+                      <button 
+                        onClick={handleDeleteAccount}
+                        className="flex items-center justify-center gap-2 text-red-400 hover:text-red-300 text-sm font-bold p-3 rounded-xl border border-red-500/20 hover:bg-red-500/5 transition-all"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                        Hesabı Sil ve Sıfırla
                       </button>
                     </div>
+                    {!isFirebaseConfigured && (
+                      <div className="mt-4 p-3 bg-amber-500/5 border border-amber-500/10 rounded-xl">
+                        <p className="text-[10px] text-amber-500/60 font-bold uppercase tracking-widest mb-1">Bulut Senkronizasyonu Kapalı</p>
+                        <p className="text-[9px] text-zinc-500">Netlify panelinden Firebase ayarlarını yaparak bulut kaydını aktif edebilirsiniz.</p>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
