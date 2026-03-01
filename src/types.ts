@@ -6,11 +6,14 @@ export interface Message {
   timestamp: number;
 }
 
+export type SubscriptionTier = 'FREE' | 'BASIC' | 'PRO';
+
 export interface UserProfile {
   name: string;
   level: 'Başlangıç' | 'Orta' | 'İleri';
   totalQuestions: number;
-  isPremium?: boolean;
+  subscriptionTier: SubscriptionTier;
+  isPremium?: boolean; // Keep for backward compatibility or remove if not needed
   lastLogin?: number;
   deviceId?: string;
   securityVerified?: boolean;

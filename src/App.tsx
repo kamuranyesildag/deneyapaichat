@@ -31,6 +31,8 @@ import { twMerge } from 'tailwind-merge';
 import { generateResponse } from './services/gemini';
 import { AppMode, Message, UserProfile, HistoryItem } from './types';
 
+import GooglePayButton from './components/GooglePayButton';
+
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
@@ -58,22 +60,79 @@ export default function App() {
   const [premiumStep, setPremiumStep] = useState<1 | 2>(1);
   const [licenseInput, setLicenseInput] = useState('');
   const [licenseError, setLicenseError] = useState('');
+  const [isPaymentLoading, setIsPaymentLoading] = useState(false);
+
+  // Handle Payment Success Redirect
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('payment_success') === 'true' && params.get('tier')) {
+      const newTier = params.get('tier') as UserProfile['subscriptionTier'];
+      if (profile && newTier) {
+        const newProfile: UserProfile = { 
+          ...profile, 
+          subscriptionTier: newTier,
+          isPremium: newTier === 'PRO' 
+        };
+        setProfile(newProfile);
+        localStorage.setItem('tekno_nova_profile', JSON.stringify(newProfile));
+        
+        // Clear URL params
+        window.history.replaceState({}, document.title, window.location.pathname);
+        
+        alert(`Tebrikler! Ödemen başarıyla tamamlandı ve ${newTier} üyeliğin aktif edildi. Keyifli kullanımlar! 🚀`);
+      }
+    }
+  }, [profile]);
+
+  const handlePaymentSuccess = async (paymentData: any, tier: 'BASIC' | 'PRO') => {
+    if (!profile) return;
+    setIsPaymentLoading(true);
+    try {
+      const response = await fetch('/api/verify-payment', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          tier, 
+          userEmail: profile.name + "@example.com",
+          paymentToken: paymentData.paymentMethodData.tokenizationData.token
+        }),
+      });
+      const data = await response.json();
+      if (data.success) {
+        const newProfile: UserProfile = { 
+          ...profile, 
+          subscriptionTier: tier,
+          isPremium: tier === 'PRO' 
+        };
+        setProfile(newProfile);
+        localStorage.setItem('tekno_nova_profile', JSON.stringify(newProfile));
+        setShowPremiumModal(false);
+        alert(`Tebrikler! Ödemen başarıyla tamamlandı ve ${tier} üyeliğin aktif edildi. Keyifli kullanımlar! 🚀`);
+      } else {
+        throw new Error(data.error || 'Ödeme doğrulanamadı');
+      }
+    } catch (error: any) {
+      console.error(error);
+      alert('Ödeme doğrulanırken bir hata oluştu: ' + error.message);
+    } finally {
+      setIsPaymentLoading(false);
+    }
+  };
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  const DAILY_LIMIT = 5;
+  const getDailyLimit = (tier: UserProfile['subscriptionTier'] = 'FREE') => {
+    if (tier === 'PRO') return 999999;
+    if (tier === 'BASIC') return 90;
+    return 5;
+  };
+
   const COOLDOWN_TIME = 20;
-  const VALID_LICENSES = [
-    'TN-4B2R-9X', 'TN-7M1L-3A', 'TN-2K8P-5Z', 'TN-9W4N-1Y', 'TN-6H7T-2B',
-    'TN-1X5C-8D', 'TN-3V9G-4E', 'TN-8F2J-6Q', 'TN-5S1K-7M', 'TN-4N3W-9L',
-    'TN-2P6R-1K', 'TN-7X8M-5V', 'TN-9D4G-2H', 'TN-1B7C-3S', 'TN-6Q2F-8W',
-    'TN-3L5P-4N', 'TN-8K1T-7X', 'TN-5M9V-6B', 'TN-4H2D-1G', 'TN-2S7K-9P',
-    'TN-7W4N-3L', 'TN-9R1X-5C', 'TN-1V8G-2F', 'TN-6P3M-8K', 'TN-3D7H-4V',
-    'TN-8S2K-1W', 'TN-5F9Q-7B', 'TN-4L1P-6D', 'TN-2G8H-3X', 'TN-7N4M-9V',
-    'TN-9K2T-1S', 'TN-1W5P-8G', 'TN-6V3D-4F', 'TN-3Q7L-2H', 'TN-8M1N-5X',
-    'TN-5P9K-6V', 'TN-4B2W-7D', 'TN-2X8G-1S', 'TN-7F4H-3M', 'TN-9L1N-5P',
-    'TN-1K7V-8Q', 'TN-6S2D-4W', 'TN-3M5P-9X', 'TN-8G1H-2K', 'TN-5V9N-7L',
-    'TN-4Q2F-1B', 'TN-2W7S-8M', 'TN-7P4K-3V', 'TN-9H1D-5G', 'TN-1X8C-2N'
+  const VALID_LICENSES_BASIC = [
+    'TNB-4B2R-9X', 'TNB-7M1L-3A', 'TNB-2K8P-5Z', 'TNB-9W4N-1Y', 'TNB-6H7T-2B'
+  ];
+  const VALID_LICENSES_PRO = [
+    'TNP-1X5C-8D', 'TNP-3V9G-4E', 'TNP-8F2J-6Q', 'TNP-5S1K-7M', 'TNP-4N3W-9L'
   ];
 
   // Initialize and sync usage, profile, and history from localStorage
@@ -99,11 +158,12 @@ export default function App() {
     if (storedProfile) {
       const parsedProfile: UserProfile = JSON.parse(storedProfile);
       // Security update: lastLogin and deviceId
-      const updatedProfile = {
+      const updatedProfile: UserProfile = {
         ...parsedProfile,
         lastLogin: Date.now(),
         deviceId: parsedProfile.deviceId || Math.random().toString(36).substring(7),
-        securityVerified: true
+        securityVerified: true,
+        subscriptionTier: parsedProfile.subscriptionTier || (parsedProfile.isPremium ? 'PRO' : 'FREE')
       };
       setProfile(updatedProfile);
       localStorage.setItem('tekno_nova_profile', JSON.stringify(updatedProfile));
@@ -137,7 +197,7 @@ export default function App() {
     scrollToBottom();
   }, [messages]);
 
-  const isLimitReached = !profile?.isPremium && usageCount >= DAILY_LIMIT;
+  const isLimitReached = profile?.subscriptionTier !== 'PRO' && usageCount >= getDailyLimit(profile?.subscriptionTier);
 
   const getBadge = (count: number) => {
     if (count >= 20) return { name: 'Tekno Nova Fatihi', color: 'text-purple-400', icon: Award };
@@ -150,6 +210,7 @@ export default function App() {
       name, 
       level, 
       totalQuestions: 0, 
+      subscriptionTier: 'FREE',
       isPremium: false,
       deviceId: Math.random().toString(36).substring(7),
       lastLogin: Date.now(),
@@ -161,14 +222,27 @@ export default function App() {
   };
 
   const handleLicenseActivation = () => {
-    if (VALID_LICENSES.includes(licenseInput.trim().toUpperCase())) {
-      const newProfile = { ...profile!, isPremium: true };
+    const code = licenseInput.trim().toUpperCase();
+    let newTier: UserProfile['subscriptionTier'] | null = null;
+
+    if (VALID_LICENSES_PRO.includes(code)) {
+      newTier = 'PRO';
+    } else if (VALID_LICENSES_BASIC.includes(code)) {
+      newTier = 'BASIC';
+    }
+
+    if (newTier) {
+      const newProfile: UserProfile = { 
+        ...profile!, 
+        subscriptionTier: newTier,
+        isPremium: newTier === 'PRO' 
+      };
       setProfile(newProfile);
       localStorage.setItem('tekno_nova_profile', JSON.stringify(newProfile));
       setShowPremiumModal(false);
       setLicenseInput('');
       setLicenseError('');
-      alert('Tebrikler! Premium üyeliğin aktif edildi. Artık sınırsız sorgu yapabilirsin! 🚀');
+      alert(`Tebrikler! ${newTier} üyeliğin aktif edildi. Keyifli kullanımlar! 🚀`);
     } else {
       setLicenseError('Geçersiz lisans kodu. Lütfen kontrol et.');
     }
@@ -250,7 +324,7 @@ export default function App() {
 
   const handleModeChange = (newMode: AppMode) => {
     const premiumModes: AppMode[] = ['AI_OPTIMIZER', 'ROADMAP_GEN', 'EXPERT_MENTOR'];
-    if (premiumModes.includes(newMode) && !profile?.isPremium) {
+    if (premiumModes.includes(newMode) && profile?.subscriptionTier !== 'PRO') {
       setShowPremiumModal(true);
       setPremiumStep(1);
       return;
@@ -594,54 +668,87 @@ export default function App() {
               </button>
 
               {premiumStep === 1 ? (
-                <div className="space-y-6 max-h-[80vh] overflow-y-auto pr-2 custom-scrollbar">
+                <div className="space-y-6 max-h-[90vh] overflow-y-auto pr-2 custom-scrollbar">
                   <div className="text-center">
-                    <div className="w-20 h-20 bg-amber-500/20 rounded-3xl flex items-center justify-center mx-auto mb-4 shadow-inner">
-                      <Award className="text-amber-400 w-12 h-12" />
+                    <div className="w-16 h-16 bg-amber-500/20 rounded-2xl flex items-center justify-center mx-auto mb-3 shadow-inner">
+                      <Zap className="text-amber-400 w-10 h-10" />
                     </div>
-                    <h2 className="text-3xl font-display font-bold bg-gradient-to-r from-amber-400 to-orange-500 bg-clip-text text-transparent">Tekno Nova Premium</h2>
-                    <p className="text-zinc-400 text-sm mt-2">Bitlis'ten Dünyaya: Sınırları Kaldır, Teknolojiyi Yönet!</p>
+                    <h2 className="text-2xl font-display font-bold bg-gradient-to-r from-amber-400 to-orange-500 bg-clip-text text-transparent">Üyelik Planları</h2>
+                    <p className="text-zinc-400 text-xs mt-1">Sana en uygun planı seç, teknolojide öne geç!</p>
                   </div>
 
-                  <div className="space-y-4">
-                    <h3 className="text-xs font-bold uppercase tracking-[0.2em] text-zinc-500">Neden Premium?</h3>
-                    <div className="grid gap-3">
-                      {[
-                        { icon: Zap, title: 'Sınırsız Sorgu', desc: 'Günlük limitlere takılmadan dilediğin kadar sor.' },
-                        { icon: ShieldCheck, title: 'Öncelikli Destek', desc: 'Bitlis Stüdyo ekibinden 7/24 teknik danışmanlık.' },
-                        { icon: Cpu, title: 'AI Kod Optimizasyonu', desc: 'Kodlarını endüstri standartlarına yükselt.' },
-                        { icon: ChevronRight, title: 'Yol Haritası', desc: 'Projelerin için 4 haftalık detaylı çalışma planı.' },
-                        { icon: Award, title: 'Uzman Mentorluk', desc: 'TEKNOFEST ve TÜBİTAK için rapor desteği.' }
-                      ].map((item, i) => (
-                        <div key={i} className="flex items-start gap-3 bg-zinc-800/40 p-4 rounded-2xl border border-zinc-700/30 hover:bg-zinc-800/60 transition-colors">
-                          <div className="p-2 bg-emerald-500/10 rounded-lg">
-                            <item.icon className="w-5 h-5 text-emerald-400" />
-                          </div>
-                          <div>
-                            <div className="text-sm font-bold text-zinc-100">{item.title}</div>
-                            <div className="text-[11px] text-zinc-400 leading-tight mt-0.5">{item.desc}</div>
-                          </div>
-                        </div>
-                      ))}
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left border-collapse">
+                      <thead>
+                        <tr className="border-b border-zinc-800">
+                          <th className="py-3 px-2 text-[10px] font-bold uppercase tracking-widest text-zinc-500">Özellikler</th>
+                          <th className="py-3 px-2 text-[10px] font-bold uppercase tracking-widest text-zinc-400 text-center">Ücretsiz</th>
+                          <th className="py-3 px-2 text-[10px] font-bold uppercase tracking-widest text-blue-400 text-center">Basit</th>
+                          <th className="py-3 px-2 text-[10px] font-bold uppercase tracking-widest text-amber-400 text-center">Pro</th>
+                        </tr>
+                      </thead>
+                      <tbody className="text-xs">
+                        {[
+                          { name: 'Günlük Mesaj Limiti', free: '5', basic: '90', pro: 'Sınırsız' },
+                          { name: 'Temel Modlar', free: '✅', basic: '✅', pro: '✅' },
+                          { name: 'Kod Hata Ayıklama', free: '✅', basic: '✅', pro: '✅' },
+                          { name: 'AI Kod Optimizasyonu', free: '✖️', basic: '✖️', pro: '✅' },
+                          { name: 'Proje Yol Haritası', free: '✖️', basic: '✖️', pro: '✅' },
+                          { name: 'Uzman Mentorluk', free: '✖️', basic: '✖️', pro: '✅' },
+                          { name: 'Öncelikli Destek', free: '✖️', basic: '✖️', pro: '✅' },
+                        ].map((row, i) => (
+                          <tr key={i} className="border-b border-zinc-800/50 hover:bg-zinc-800/30 transition-colors">
+                            <td className="py-3 px-2 text-zinc-300 font-medium">{row.name}</td>
+                            <td className="py-3 px-2 text-center">{row.free}</td>
+                            <td className="py-3 px-2 text-center text-blue-400">{row.basic}</td>
+                            <td className="py-3 px-2 text-center text-amber-400">{row.pro}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  <div className="grid grid-cols-1 gap-3 mt-4">
+                    <div className="bg-zinc-800/50 border border-zinc-700 rounded-2xl p-4 flex flex-col items-center text-center">
+                      <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-1">Basit Sürüm</span>
+                      <div className="text-2xl font-bold text-white mb-1">54,99 TL <span className="text-xs text-zinc-500 font-normal">/ Tek Sefer</span></div>
+                      <p className="text-[10px] text-zinc-400 mb-3">Daha fazla soru sormak isteyenler için.</p>
+                      <GooglePayButton 
+                        amount="54.99" 
+                        tier="BASIC" 
+                        onSuccess={(data) => handlePaymentSuccess(data, 'BASIC')}
+                        onError={(err) => alert('Ödeme hatası: ' + err.message)}
+                      />
                     </div>
+
+                    <div className="bg-amber-500/10 border border-amber-500/30 rounded-2xl p-4 flex flex-col items-center text-center relative overflow-hidden">
+                      <div className="absolute top-0 right-0 bg-amber-500 text-black text-[8px] font-black px-2 py-0.5 rounded-bl-lg uppercase tracking-tighter">En Popüler</div>
+                      <span className="text-[10px] font-bold text-amber-500 uppercase tracking-widest mb-1">Pro Sürüm</span>
+                      <div className="text-2xl font-bold text-white mb-1">169,99 TL <span className="text-xs text-zinc-500 font-normal">/ Tek Sefer</span></div>
+                      <p className="text-[10px] text-zinc-400 mb-3">Tüm özellikler ve sınırsız mentorluk.</p>
+                      <GooglePayButton 
+                        amount="169.99" 
+                        tier="PRO" 
+                        onSuccess={(data) => handlePaymentSuccess(data, 'PRO')}
+                        onError={(err) => alert('Ödeme hatası: ' + err.message)}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-center gap-4 mt-2">
+                    <button 
+                      onClick={() => setPremiumStep(2)}
+                      className="text-[10px] text-zinc-500 hover:text-zinc-300 underline font-bold uppercase tracking-widest"
+                    >
+                      Lisans Kodun mu Var?
+                    </button>
                   </div>
 
                   <div className="bg-emerald-500/5 border border-emerald-500/20 rounded-2xl p-4">
-                    <div className="flex items-center gap-2 mb-2 text-emerald-400">
-                      <Info className="w-4 h-4" />
-                      <span className="text-[10px] font-bold uppercase tracking-widest">Geliştirici Notu</span>
-                    </div>
-                    <p className="text-[11px] text-zinc-400 leading-relaxed italic">
-                      "Tekno Nova'yı Bitlis'teki gençlerin teknolojiye erişimini kolaylaştırmak için geliştirdik. Premium üyelik, sunucu maliyetlerini karşılamamıza ve sistemi sürekli güncel tutmamıza yardımcı oluyor. Desteğiniz için teşekkürler!" - Bitlis Stüdyo
+                    <p className="text-[10px] text-zinc-400 leading-relaxed text-center italic">
+                      "Ödemeler Stripe güvencesiyle Google Pay ve tüm kredi kartları ile yapılabilir. Destekleriniz Bitlis'teki teknoloji ekosistemini büyütür."
                     </p>
                   </div>
-
-                  <button 
-                    onClick={() => setPremiumStep(2)}
-                    className="w-full bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-400 hover:to-orange-500 text-white font-bold py-4 rounded-2xl transition-all shadow-xl shadow-amber-500/20 flex items-center justify-center gap-2 group"
-                  >
-                    Hemen Başla <ChevronRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
-                  </button>
                 </div>
               ) : (
                 <div className="space-y-6">
@@ -839,14 +946,16 @@ export default function App() {
             </div>
           </button>
 
-          {!profile?.isPremium && (
+          {profile?.subscriptionTier !== 'PRO' && (
             <div className="pt-4 px-2">
               <button
                 onClick={() => { setShowPremiumModal(true); setPremiumStep(1); }}
                 className="w-full flex items-center gap-3 px-4 py-3 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 text-white font-bold shadow-lg shadow-amber-500/20 hover:scale-[1.02] transition-all"
               >
                 <Award className="w-5 h-5" />
-                <span className="text-sm">Premium'a Geç</span>
+                <span className="text-sm">
+                  {profile?.subscriptionTier === 'BASIC' ? 'Pro\'ya Yükselt' : 'Premium\'a Geç'}
+                </span>
               </button>
             </div>
           )}
@@ -911,7 +1020,8 @@ export default function App() {
               <div className="text-right hidden sm:block">
                 <div className="flex items-center justify-end gap-2">
                   <div className="text-sm font-bold group-hover:text-emerald-400 transition-colors">Hoş geldin, {profile.name}!</div>
-                  {profile.isPremium && <span className="bg-amber-500 text-black text-[8px] font-black px-1 rounded uppercase">Premium</span>}
+                  {profile.subscriptionTier === 'PRO' && <span className="bg-amber-500 text-black text-[8px] font-black px-1 rounded uppercase">Pro</span>}
+                  {profile.subscriptionTier === 'BASIC' && <span className="bg-blue-500 text-white text-[8px] font-black px-1 rounded uppercase">Basit</span>}
                 </div>
                 <div className={cn("text-[10px] font-bold flex items-center justify-end gap-1", badge?.color)}>
                   {badge && <badge.icon className="w-3 h-3" />}
@@ -1068,26 +1178,34 @@ export default function App() {
                     </div>
                     <div className="flex justify-between items-center p-3 bg-zinc-800/50 rounded-xl border border-zinc-700/30">
                       <span className="text-zinc-400 text-xs font-bold uppercase tracking-wider">Üyelik Tipi</span>
-                      <span className={cn("font-bold", profile?.isPremium ? "text-amber-400" : "text-zinc-500")}>
-                        {profile?.isPremium ? 'Premium' : 'Ücretsiz'}
+                      <span className={cn("font-bold", 
+                        profile?.subscriptionTier === 'PRO' ? "text-amber-400" : 
+                        profile?.subscriptionTier === 'BASIC' ? "text-blue-400" : "text-zinc-500"
+                      )}>
+                        {profile?.subscriptionTier === 'PRO' ? 'Pro Sürüm' : 
+                         profile?.subscriptionTier === 'BASIC' ? 'Basit Sürüm' : 'Ücretsiz'}
                       </span>
                     </div>
                   </div>
                 </div>
 
                 <div className="space-y-6">
-                  {!profile?.isPremium ? (
+                  {profile?.subscriptionTier !== 'PRO' ? (
                     <div className="bg-gradient-to-br from-amber-500 to-orange-600 rounded-3xl p-8 text-white shadow-xl shadow-amber-500/20">
                       <Award className="w-10 h-10 mb-4" />
-                      <h4 className="text-xl font-bold mb-2">Premium'a Yükselt</h4>
+                      <h4 className="text-xl font-bold mb-2">
+                        {profile?.subscriptionTier === 'BASIC' ? 'Pro\'ya Yükselt' : 'Premium\'a Yükselt'}
+                      </h4>
                       <p className="text-amber-100 text-sm mb-6 leading-relaxed">
-                        Sınırları kaldırın, Bitlis Stüdyo'dan özel destek alın ve Tekno Nova'nın tüm gücünü keşfedin.
+                        {profile?.subscriptionTier === 'BASIC' 
+                          ? 'Sınırsız mesaj ve tüm kilitli modlara erişmek için Pro sürümüne geçin.'
+                          : 'Sınırları kaldırın, Bitlis Stüdyo\'dan özel destek alın ve Tekno Nova\'nın tüm gücünü keşfedin.'}
                       </p>
                       <button 
                         onClick={() => { setShowPremiumModal(true); setPremiumStep(1); }}
                         className="w-full bg-white text-amber-600 font-bold py-3 rounded-xl hover:bg-amber-50 transition-all shadow-lg"
                       >
-                        Hemen Yükselt
+                        {profile?.subscriptionTier === 'BASIC' ? 'Pro\'ya Geç' : 'Hemen Yükselt'}
                       </button>
                     </div>
                   ) : (
@@ -1163,12 +1281,12 @@ export default function App() {
                 <p className="text-amber-200 text-sm md:text-base leading-relaxed">
                   Günlük hakkın doldu teknoloji fatihi! 🚀 API maliyetlerini karşılamak ve sistemi açık tutmak için sınırlı kontenjan kullanıyoruz.
                 </p>
-                {!profile?.isPremium && (
+                {profile?.subscriptionTier !== 'PRO' && (
                   <button 
                     onClick={() => { setShowPremiumModal(true); setPremiumStep(1); }}
                     className="mt-4 bg-amber-500 hover:bg-amber-400 text-black font-bold px-6 py-2 rounded-xl transition-all"
                   >
-                    Premium'a Geç ve Sınırları Kaldır
+                    {profile?.subscriptionTier === 'BASIC' ? 'Pro\'ya Yükselt ve Sınırları Kaldır' : 'Premium\'a Geç ve Sınırları Kaldır'}
                   </button>
                 )}
               </motion.div>
