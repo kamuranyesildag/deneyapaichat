@@ -48,7 +48,13 @@ MOD 7: UZMAN MENTOR (Premium)
 Eğer kullanıcı ne yapacağını bilemezse, ona yardımcı olabileceğini söyle ve modları açıkla.`;
 
 export async function generateResponse(prompt: string, mode: AppMode, profile: UserProfile) {
-  const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+  const apiKey = process.env.GEMINI_API_KEY;
+  
+  if (!apiKey || apiKey === "undefined" || apiKey === "null" || apiKey === "") {
+    throw new Error("API_KEY_MISSING");
+  }
+
+  const ai = new GoogleGenAI({ apiKey });
   
   const modeDescriptions: Record<AppMode, string> = {
     'PROJECT_GEN': 'AKILLI PROJE ÜRETİCİ (Malzeme listesine göre proje fikirleri üret)',

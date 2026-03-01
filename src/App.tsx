@@ -64,8 +64,16 @@ export default function App() {
   const DAILY_LIMIT = 5;
   const COOLDOWN_TIME = 20;
   const VALID_LICENSES = [
-    'TN-2026-X1', 'TN-2026-X2', 'TN-2026-X3', 'TN-2026-X4', 'TN-2026-X5',
-    'TN-2026-X6', 'TN-2026-X7', 'TN-2026-X8', 'TN-2026-X9', 'TN-2026-X10'
+    'TN-4B2R-9X', 'TN-7M1L-3A', 'TN-2K8P-5Z', 'TN-9W4N-1Y', 'TN-6H7T-2B',
+    'TN-1X5C-8D', 'TN-3V9G-4E', 'TN-8F2J-6Q', 'TN-5S1K-7M', 'TN-4N3W-9L',
+    'TN-2P6R-1K', 'TN-7X8M-5V', 'TN-9D4G-2H', 'TN-1B7C-3S', 'TN-6Q2F-8W',
+    'TN-3L5P-4N', 'TN-8K1T-7X', 'TN-5M9V-6B', 'TN-4H2D-1G', 'TN-2S7K-9P',
+    'TN-7W4N-3L', 'TN-9R1X-5C', 'TN-1V8G-2F', 'TN-6P3M-8K', 'TN-3D7H-4V',
+    'TN-8S2K-1W', 'TN-5F9Q-7B', 'TN-4L1P-6D', 'TN-2G8H-3X', 'TN-7N4M-9V',
+    'TN-9K2T-1S', 'TN-1W5P-8G', 'TN-6V3D-4F', 'TN-3Q7L-2H', 'TN-8M1N-5X',
+    'TN-5P9K-6V', 'TN-4B2W-7D', 'TN-2X8G-1S', 'TN-7F4H-3M', 'TN-9L1N-5P',
+    'TN-1K7V-8Q', 'TN-6S2D-4W', 'TN-3M5P-9X', 'TN-8G1H-2K', 'TN-5V9N-7L',
+    'TN-4Q2F-1B', 'TN-2W7S-8M', 'TN-7P4K-3V', 'TN-9H1D-5G', 'TN-1X8C-2N'
   ];
 
   // Initialize and sync usage, profile, and history from localStorage
@@ -220,11 +228,19 @@ export default function App() {
       setHistory(updatedHistory);
       localStorage.setItem('tekno_nova_history', JSON.stringify(updatedHistory));
 
-    } catch (error) {
+    } catch (error: any) {
       console.error(error);
+      let errorMessage = 'Bir hata oluştu. Lütfen internet bağlantını kontrol et ve tekrar dene.';
+      
+      if (error.message === "API_KEY_MISSING") {
+        errorMessage = 'Gemini API anahtarı bulunamadı. Lütfen Netlify panelinden GEMINI_API_KEY ortam değişkenini ayarladığınızdan emin olun.';
+      } else if (error.message?.includes('API key not valid')) {
+        errorMessage = 'Geçersiz API anahtarı. Lütfen API anahtarınızı kontrol edin.';
+      }
+
       setMessages(prev => [...prev, {
         role: 'assistant',
-        content: 'Bir hata oluştu. Lütfen internet bağlantını kontrol et ve tekrar dene.',
+        content: errorMessage,
         timestamp: Date.now(),
       }]);
     } finally {
@@ -255,7 +271,7 @@ export default function App() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm"
+            className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm"
           >
             <motion.div 
               initial={{ scale: 0.9, opacity: 0 }}
@@ -320,14 +336,14 @@ export default function App() {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               onClick={() => setShowMobileMenu(false)}
-              className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm lg:hidden"
+              className="fixed inset-0 z-[60] bg-black/60 backdrop-blur-sm lg:hidden"
             />
             <motion.div 
               initial={{ x: '-100%' }}
               animate={{ x: 0 }}
               exit={{ x: '-100%' }}
               transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-              className="fixed inset-y-0 left-0 z-50 w-72 bg-zinc-950 border-r border-zinc-800 lg:hidden flex flex-col"
+              className="fixed inset-y-0 left-0 z-[70] w-72 bg-zinc-950 border-r border-zinc-800 lg:hidden flex flex-col"
             >
               <div className="p-6 border-b border-zinc-800 flex items-center justify-between">
                 <div className="flex items-center gap-3">
@@ -490,7 +506,7 @@ export default function App() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm"
+            className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm"
           >
             <motion.div 
               initial={{ scale: 0.9, opacity: 0 }}
@@ -563,7 +579,7 @@ export default function App() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm"
+            className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm"
           >
             <motion.div 
               initial={{ scale: 0.9, opacity: 0 }}
@@ -676,7 +692,7 @@ export default function App() {
       </AnimatePresence>
 
       {/* Sidebar */}
-      <aside className="w-80 border-r border-zinc-800 bg-zinc-900/50 flex flex-col hidden lg:flex shrink-0">
+      <aside className="w-80 border-r border-zinc-800 bg-zinc-900/50 flex flex-col hidden lg:flex shrink-0 h-screen sticky top-0">
         <div className="p-6 border-b border-zinc-800">
           <div className="flex items-center gap-3 mb-2">
             <div className="w-10 h-10 bg-emerald-500 rounded-xl flex items-center justify-center shadow-lg shadow-emerald-500/20">
