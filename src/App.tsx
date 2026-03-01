@@ -1,4 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { auth, googleProvider } from './services/firebase';
+import { signInWithPopup, signOut, onAuthStateChanged, User as FirebaseUser } from 'firebase/auth';
 import { 
   Cpu, 
   Bug, 
@@ -22,7 +24,8 @@ import {
   Key,
   ArrowLeft,
   AlertCircle,
-  Menu
+  Menu,
+  LogIn
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import Markdown from 'react-markdown';
@@ -30,8 +33,6 @@ import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import { generateResponse } from './services/gemini';
 import { AppMode, Message, UserProfile, HistoryItem } from './types';
-
-import GooglePayButton from './components/GooglePayButton';
 
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -61,61 +62,52 @@ export default function App() {
   const [licenseInput, setLicenseInput] = useState('');
   const [licenseError, setLicenseError] = useState('');
   const [isPaymentLoading, setIsPaymentLoading] = useState(false);
+  const [firebaseUser, setFirebaseUser] = useState<FirebaseUser | null>(null);
 
-  // Handle Payment Success Redirect
+  // Firebase Auth Listener
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    if (params.get('payment_success') === 'true' && params.get('tier')) {
-      const newTier = params.get('tier') as UserProfile['subscriptionTier'];
-      if (profile && newTier) {
-        const newProfile: UserProfile = { 
-          ...profile, 
-          subscriptionTier: newTier,
-          isPremium: newTier === 'PRO' 
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      setFirebaseUser(user);
+      if (user && !profile) {
+        // If logged in but no profile, create one
+        const newProfile: UserProfile = {
+          name: user.displayName || 'Gezgin',
+          level: 'Başlangıç',
+          totalQuestions: 0,
+          subscriptionTier: 'FREE',
+          isPremium: false,
+          deviceId: Math.random().toString(36).substring(7),
+          lastLogin: Date.now(),
+          securityVerified: true,
+          email: user.email || undefined
         };
         setProfile(newProfile);
         localStorage.setItem('tekno_nova_profile', JSON.stringify(newProfile));
-        
-        // Clear URL params
-        window.history.replaceState({}, document.title, window.location.pathname);
-        
-        alert(`Tebrikler! Ödemen başarıyla tamamlandı ve ${newTier} üyeliğin aktif edildi. Keyifli kullanımlar! 🚀`);
+        setShowOnboarding(false);
       }
-    }
+    });
+    return () => unsubscribe();
   }, [profile]);
 
-  const handlePaymentSuccess = async (paymentData: any, tier: 'BASIC' | 'PRO') => {
-    if (!profile) return;
-    setIsPaymentLoading(true);
+  const handleGoogleSignIn = async () => {
     try {
-      const response = await fetch('/api/verify-payment', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          tier, 
-          userEmail: profile.name + "@example.com",
-          paymentToken: paymentData.paymentMethodData.tokenizationData.token
-        }),
-      });
-      const data = await response.json();
-      if (data.success) {
-        const newProfile: UserProfile = { 
-          ...profile, 
-          subscriptionTier: tier,
-          isPremium: tier === 'PRO' 
-        };
-        setProfile(newProfile);
-        localStorage.setItem('tekno_nova_profile', JSON.stringify(newProfile));
-        setShowPremiumModal(false);
-        alert(`Tebrikler! Ödemen başarıyla tamamlandı ve ${tier} üyeliğin aktif edildi. Keyifli kullanımlar! 🚀`);
-      } else {
-        throw new Error(data.error || 'Ödeme doğrulanamadı');
-      }
+      setIsLoading(true);
+      await signInWithPopup(auth, googleProvider);
     } catch (error: any) {
-      console.error(error);
-      alert('Ödeme doğrulanırken bir hata oluştu: ' + error.message);
+      console.error("Google Sign-In Error:", error);
+      alert("Giriş yapılırken bir hata oluştu. Lütfen Firebase yapılandırmasını kontrol edin.");
     } finally {
-      setIsPaymentLoading(false);
+      setIsLoading(false);
+    }
+  };
+
+  const handleLogout = async () => {
+    try {
+      await signOut(auth);
+      localStorage.clear();
+      window.location.reload();
+    } catch (error) {
+      console.error("Logout Error:", error);
     }
   };
   
@@ -395,6 +387,20 @@ export default function App() {
                 <button type="submit" className="w-full bg-emerald-500 hover:bg-emerald-400 text-white font-bold py-4 rounded-xl transition-all shadow-lg shadow-emerald-500/20">
                   Başlayalım!
                 </button>
+
+                <div className="relative py-2">
+                  <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-zinc-800"></div></div>
+                  <div className="relative flex justify-center text-[10px] uppercase font-bold tracking-widest"><span className="bg-zinc-900 px-2 text-zinc-600">Veya</span></div>
+                </div>
+
+                <button 
+                  type="button"
+                  onClick={handleGoogleSignIn}
+                  className="w-full bg-white text-zinc-900 font-bold py-4 rounded-xl transition-all flex items-center justify-center gap-3 hover:bg-zinc-100"
+                >
+                  <img src="https://www.google.com/favicon.ico" className="w-5 h-5" alt="Google" />
+                  Google ile Giriş Yap
+                </button>
               </form>
             </motion.div>
           </motion.div>
@@ -560,6 +566,16 @@ export default function App() {
                   <User className={cn("w-4 h-4", activeTab === 'profile' ? "text-purple-400" : "group-hover:text-zinc-200")} />
                   <span className="font-semibold text-sm">Profilim</span>
                 </button>
+
+                {!firebaseUser && (
+                  <button
+                    onClick={handleGoogleSignIn}
+                    className="w-full flex items-center gap-3 px-4 py-2.5 rounded-xl transition-all duration-200 text-zinc-400 hover:bg-zinc-800 hover:text-white"
+                  >
+                    <LogIn className="w-4 h-4" />
+                    <span className="font-semibold text-sm">Giriş Yap</span>
+                  </button>
+                )}
               </nav>
 
               <div className="p-6 border-t border-zinc-800">
@@ -713,12 +729,18 @@ export default function App() {
                       <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-1">Basit Sürüm</span>
                       <div className="text-2xl font-bold text-white mb-1">54,99 TL <span className="text-xs text-zinc-500 font-normal">/ Tek Sefer</span></div>
                       <p className="text-[10px] text-zinc-400 mb-3">Daha fazla soru sormak isteyenler için.</p>
-                      <GooglePayButton 
-                        amount="54.99" 
-                        tier="BASIC" 
-                        onSuccess={(data) => handlePaymentSuccess(data, 'BASIC')}
-                        onError={(err) => alert('Ödeme hatası: ' + err.message)}
-                      />
+                      <button 
+                        onClick={() => window.open('https://www.shopier.com/bitlisstudyo/44761101', '_blank')}
+                        className="w-full bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold py-2 rounded-xl transition-all flex items-center justify-center gap-2 mb-2"
+                      >
+                        Shopier ile Satın Al
+                      </button>
+                      <button 
+                        onClick={() => setPremiumStep(2)}
+                        className="w-full bg-zinc-700 hover:bg-zinc-600 text-white text-[10px] font-bold py-1.5 rounded-xl transition-all flex items-center justify-center gap-2"
+                      >
+                        Lisans Kodunu Gir
+                      </button>
                     </div>
 
                     <div className="bg-amber-500/10 border border-amber-500/30 rounded-2xl p-4 flex flex-col items-center text-center relative overflow-hidden">
@@ -726,12 +748,18 @@ export default function App() {
                       <span className="text-[10px] font-bold text-amber-500 uppercase tracking-widest mb-1">Pro Sürüm</span>
                       <div className="text-2xl font-bold text-white mb-1">169,99 TL <span className="text-xs text-zinc-500 font-normal">/ Tek Sefer</span></div>
                       <p className="text-[10px] text-zinc-400 mb-3">Tüm özellikler ve sınırsız mentorluk.</p>
-                      <GooglePayButton 
-                        amount="169.99" 
-                        tier="PRO" 
-                        onSuccess={(data) => handlePaymentSuccess(data, 'PRO')}
-                        onError={(err) => alert('Ödeme hatası: ' + err.message)}
-                      />
+                      <button 
+                        onClick={() => window.open('https://www.shopier.com/bitlisstudyo/44761166', '_blank')}
+                        className="w-full bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-400 hover:to-orange-500 text-white text-xs font-bold py-2 rounded-xl transition-all shadow-lg shadow-amber-500/20 flex items-center justify-center gap-2 mb-2"
+                      >
+                        Shopier ile Satın Al
+                      </button>
+                      <button 
+                        onClick={() => setPremiumStep(2)}
+                        className="w-full bg-zinc-700 hover:bg-zinc-600 text-white text-[10px] font-bold py-1.5 rounded-xl transition-all flex items-center justify-center gap-2"
+                      >
+                        Lisans Kodunu Gir
+                      </button>
                     </div>
                   </div>
 
@@ -746,7 +774,7 @@ export default function App() {
 
                   <div className="bg-emerald-500/5 border border-emerald-500/20 rounded-2xl p-4">
                     <p className="text-[10px] text-zinc-400 leading-relaxed text-center italic">
-                      "Ödemeler Stripe güvencesiyle Google Pay ve tüm kredi kartları ile yapılabilir. Destekleriniz Bitlis'teki teknoloji ekosistemini büyütür."
+                      "Ödemeler Shopier güvencesiyle tüm kredi kartları ile yapılabilir. Satın alım sonrası lisans kodunuz e-posta ile gönderilecektir."
                     </p>
                   </div>
                 </div>
@@ -785,10 +813,10 @@ export default function App() {
                     </div>
 
                     <button 
-                      onClick={handleRequestLicense}
+                      onClick={() => setPremiumStep(1)}
                       className="w-full bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-bold py-3 rounded-xl transition-all border border-zinc-700 flex items-center justify-center gap-2"
                     >
-                      Lisans kodun yok mu? IBAN ve Bilgi Al
+                      Lisans kodun yok mu? Shopier ile Satın Al
                     </button>
                   </div>
                 </div>
@@ -945,6 +973,18 @@ export default function App() {
               <div className="font-semibold text-sm">Profilim</div>
             </div>
           </button>
+
+          {!firebaseUser && (
+            <button
+              onClick={handleGoogleSignIn}
+              className="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 text-zinc-400 hover:bg-zinc-800 hover:text-white"
+            >
+              <LogIn className="w-5 h-5" />
+              <div className="text-left">
+                <div className="font-semibold text-sm">Giriş Yap</div>
+              </div>
+            </button>
+          )}
 
           {profile?.subscriptionTier !== 'PRO' && (
             <div className="pt-4 px-2">
@@ -1224,6 +1264,15 @@ export default function App() {
                       Hesap Ayarları
                     </h4>
                     <div className="space-y-3">
+                      {!firebaseUser && (
+                        <button 
+                          onClick={handleGoogleSignIn}
+                          className="w-full flex items-center justify-center gap-2 text-zinc-900 bg-white hover:bg-zinc-100 text-sm font-bold p-3 rounded-xl transition-all"
+                        >
+                          <img src="https://www.google.com/favicon.ico" className="w-4 h-4" alt="Google" />
+                          Google ile Bağlan
+                        </button>
+                      )}
                       <button 
                         onClick={() => {
                           if (navigator.share) {
@@ -1250,12 +1299,7 @@ export default function App() {
                         Gizlilik Politikası
                       </button>
                       <button 
-                        onClick={() => {
-                          if (confirm('Tüm verilerin silinecek. Emin misin?')) {
-                            localStorage.clear();
-                            window.location.reload();
-                          }
-                        }}
+                        onClick={handleLogout}
                         className="w-full flex items-center justify-center gap-2 text-red-400 hover:text-red-300 text-sm font-bold p-3 rounded-xl border border-red-500/20 hover:bg-red-500/5 transition-all"
                       >
                         <LogOut className="w-4 h-4" />

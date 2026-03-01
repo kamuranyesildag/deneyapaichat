@@ -1,6 +1,5 @@
 import express from "express";
 import { createServer as createViteServer } from "vite";
-import Stripe from "stripe";
 import dotenv from "dotenv";
 import path from "path";
 import { fileURLToPath } from "url";
@@ -19,22 +18,8 @@ const PORT = 3000;
 app.use(express.json());
 
 // API Routes
-app.post("/api/verify-payment", async (req, res) => {
-  const { tier, userEmail, paymentToken } = req.body;
-
-  // In a real scenario, you would send this paymentToken to your gateway (e.g. PayTR, Iyzico)
-  // For now, we simulate success since we are using Google Pay API directly
-  console.log(`Payment received for ${tier} from ${userEmail}. Token:`, paymentToken);
-
-  try {
-    // Simulate processing delay
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    res.json({ success: true, tier });
-  } catch (error: any) {
-    console.error("Payment Error:", error);
-    res.status(500).json({ error: error.message });
-  }
+app.get("/api/health", (req, res) => {
+  res.json({ status: "ok" });
 });
 
 // Vite middleware for development

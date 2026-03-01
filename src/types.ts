@@ -17,6 +17,7 @@ export interface UserProfile {
   lastLogin?: number;
   deviceId?: string;
   securityVerified?: boolean;
+  email?: string;
 }
 
 export interface HistoryItem {
