@@ -408,7 +408,7 @@ export default function App() {
                   <div className="relative flex justify-center text-[10px] uppercase font-bold tracking-widest"><span className="bg-zinc-900 px-2 text-zinc-600">Veya</span></div>
                 </div>
 
-                {isFirebaseConfigured && (
+                {isFirebaseConfigured ? (
                   <button 
                     type="button"
                     onClick={handleGoogleSignIn}
@@ -417,6 +417,11 @@ export default function App() {
                     <img src="https://www.google.com/favicon.ico" className="w-5 h-5" alt="Google" />
                     Google ile Giriş Yap
                   </button>
+                ) : (
+                  <div className="p-4 bg-amber-500/5 border border-amber-500/10 rounded-xl text-center">
+                    <p className="text-[10px] text-amber-500/60 font-bold uppercase tracking-widest mb-1">Bulut Senkronizasyonu Devre Dışı</p>
+                    <p className="text-[9px] text-zinc-500 leading-relaxed">Netlify panelinden Firebase API anahtarlarını ekleyerek Google ile girişi aktif edebilirsiniz.</p>
+                  </div>
                 )}
               </form>
             </motion.div>
@@ -584,14 +589,20 @@ export default function App() {
                   <span className="font-semibold text-sm">Profilim</span>
                 </button>
 
-                {isFirebaseConfigured && !firebaseUser && (
-                  <button
-                    onClick={handleGoogleSignIn}
-                    className="w-full flex items-center gap-3 px-4 py-2.5 rounded-xl transition-all duration-200 text-zinc-400 hover:bg-zinc-800 hover:text-white"
-                  >
-                    <LogIn className="w-4 h-4" />
-                    <span className="font-semibold text-sm">Giriş Yap</span>
-                  </button>
+                {isFirebaseConfigured ? (
+                  !firebaseUser && (
+                    <button
+                      onClick={handleGoogleSignIn}
+                      className="w-full flex items-center gap-3 px-4 py-2.5 rounded-xl transition-all duration-200 text-zinc-400 hover:bg-zinc-800 hover:text-white"
+                    >
+                      <LogIn className="w-4 h-4" />
+                      <span className="font-semibold text-sm">Giriş Yap</span>
+                    </button>
+                  )
+                ) : (
+                  <div className="px-4 py-2 text-[10px] text-amber-500/60 font-medium uppercase tracking-wider">
+                    Firebase Yapılandırması Eksik
+                  </div>
                 )}
               </nav>
 
@@ -991,16 +1002,22 @@ export default function App() {
             </div>
           </button>
 
-          {isFirebaseConfigured && !firebaseUser && (
-            <button
-              onClick={handleGoogleSignIn}
-              className="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 text-zinc-400 hover:bg-zinc-800 hover:text-white"
-            >
-              <LogIn className="w-5 h-5" />
-              <div className="text-left">
-                <div className="font-semibold text-sm">Giriş Yap</div>
-              </div>
-            </button>
+          {isFirebaseConfigured ? (
+            !firebaseUser && (
+              <button
+                onClick={handleGoogleSignIn}
+                className="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 text-zinc-400 hover:bg-zinc-800 hover:text-white"
+              >
+                <LogIn className="w-5 h-5" />
+                <div className="text-left">
+                  <div className="font-semibold text-sm">Giriş Yap</div>
+                </div>
+              </button>
+            )
+          ) : (
+            <div className="px-4 py-3 text-[10px] text-amber-500/40 font-bold uppercase tracking-widest">
+              Bulut Kapalı
+            </div>
           )}
 
           {profile?.subscriptionTier !== 'PRO' && (
@@ -1281,14 +1298,21 @@ export default function App() {
                       Hesap Ayarları
                     </h4>
                     <div className="space-y-3">
-                      {isFirebaseConfigured && !firebaseUser && (
-                        <button 
-                          onClick={handleGoogleSignIn}
-                          className="w-full flex items-center justify-center gap-2 text-zinc-900 bg-white hover:bg-zinc-100 text-sm font-bold p-3 rounded-xl transition-all"
-                        >
-                          <img src="https://www.google.com/favicon.ico" className="w-4 h-4" alt="Google" />
-                          Google ile Bağlan
-                        </button>
+                      {isFirebaseConfigured ? (
+                        !firebaseUser && (
+                          <button 
+                            onClick={handleGoogleSignIn}
+                            className="w-full flex items-center justify-center gap-2 text-zinc-900 bg-white hover:bg-zinc-100 text-sm font-bold p-3 rounded-xl transition-all"
+                          >
+                            <img src="https://www.google.com/favicon.ico" className="w-4 h-4" alt="Google" />
+                            Google ile Bağlan
+                          </button>
+                        )
+                      ) : (
+                        <div className="p-3 bg-amber-500/5 border border-amber-500/10 rounded-xl text-center">
+                          <p className="text-[10px] text-amber-500/60 font-bold uppercase tracking-widest mb-1">Bulut Senkronizasyonu Kapalı</p>
+                          <p className="text-[9px] text-zinc-500">Netlify panelinden Firebase ayarlarını yaparak bulut kaydını aktif edebilirsiniz.</p>
+                        </div>
                       )}
                       <button 
                         onClick={() => {
