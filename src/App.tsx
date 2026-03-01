@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { auth, googleProvider } from './services/firebase';
+import { auth, googleProvider, isFirebaseConfigured } from './services/firebase';
 import { signInWithPopup, signOut, onAuthStateChanged, User as FirebaseUser } from 'firebase/auth';
 import { 
   Cpu, 
@@ -66,6 +66,7 @@ export default function App() {
 
   // Firebase Auth Listener
   useEffect(() => {
+    if (!auth) return;
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       setFirebaseUser(user);
       if (user && !profile) {
@@ -90,12 +91,24 @@ export default function App() {
   }, [profile]);
 
   const handleGoogleSignIn = async () => {
+    if (!isFirebaseConfigured || !auth) {
+      alert("Google ile giriş şu anda devre dışı. Lütfen yönetici ile iletişime geçin.");
+      return;
+    }
     try {
       setIsLoading(true);
       await signInWithPopup(auth, googleProvider);
     } catch (error: any) {
       console.error("Google Sign-In Error:", error);
-      alert("Giriş yapılırken bir hata oluştu. Lütfen Firebase yapılandırmasını kontrol edin.");
+      let msg = "Giriş yapılırken bir hata oluştu.";
+      if (error.code === 'auth/unauthorized-domain') {
+        msg += "\n\nBu alan adı (domain) Firebase Console'da 'Yetkilendirilmiş Alan Adları' listesine eklenmemiş.";
+      } else if (error.code === 'auth/operation-not-allowed') {
+        msg += "\n\nGoogle ile Giriş yöntemi Firebase Console'da etkinleştirilmemiş.";
+      } else {
+        msg += `\n\nHata Kodu: ${error.code || 'Bilinmiyor'}`;
+      }
+      alert(msg);
     } finally {
       setIsLoading(false);
     }
@@ -103,7 +116,9 @@ export default function App() {
 
   const handleLogout = async () => {
     try {
-      await signOut(auth);
+      if (auth) {
+        await signOut(auth);
+      }
       localStorage.clear();
       window.location.reload();
     } catch (error) {
@@ -393,14 +408,16 @@ export default function App() {
                   <div className="relative flex justify-center text-[10px] uppercase font-bold tracking-widest"><span className="bg-zinc-900 px-2 text-zinc-600">Veya</span></div>
                 </div>
 
-                <button 
-                  type="button"
-                  onClick={handleGoogleSignIn}
-                  className="w-full bg-white text-zinc-900 font-bold py-4 rounded-xl transition-all flex items-center justify-center gap-3 hover:bg-zinc-100"
-                >
-                  <img src="https://www.google.com/favicon.ico" className="w-5 h-5" alt="Google" />
-                  Google ile Giriş Yap
-                </button>
+                {isFirebaseConfigured && (
+                  <button 
+                    type="button"
+                    onClick={handleGoogleSignIn}
+                    className="w-full bg-white text-zinc-900 font-bold py-4 rounded-xl transition-all flex items-center justify-center gap-3 hover:bg-zinc-100"
+                  >
+                    <img src="https://www.google.com/favicon.ico" className="w-5 h-5" alt="Google" />
+                    Google ile Giriş Yap
+                  </button>
+                )}
               </form>
             </motion.div>
           </motion.div>
@@ -567,7 +584,7 @@ export default function App() {
                   <span className="font-semibold text-sm">Profilim</span>
                 </button>
 
-                {!firebaseUser && (
+                {isFirebaseConfigured && !firebaseUser && (
                   <button
                     onClick={handleGoogleSignIn}
                     className="w-full flex items-center gap-3 px-4 py-2.5 rounded-xl transition-all duration-200 text-zinc-400 hover:bg-zinc-800 hover:text-white"
@@ -974,7 +991,7 @@ export default function App() {
             </div>
           </button>
 
-          {!firebaseUser && (
+          {isFirebaseConfigured && !firebaseUser && (
             <button
               onClick={handleGoogleSignIn}
               className="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 text-zinc-400 hover:bg-zinc-800 hover:text-white"
@@ -1264,7 +1281,7 @@ export default function App() {
                       Hesap Ayarları
                     </h4>
                     <div className="space-y-3">
-                      {!firebaseUser && (
+                      {isFirebaseConfigured && !firebaseUser && (
                         <button 
                           onClick={handleGoogleSignIn}
                           className="w-full flex items-center justify-center gap-2 text-zinc-900 bg-white hover:bg-zinc-100 text-sm font-bold p-3 rounded-xl transition-all"
