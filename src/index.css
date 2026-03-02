@@ -10,19 +10,42 @@
 @layer base {
   body {
     @apply bg-zinc-950 text-zinc-100 font-sans antialiased;
+    background-image: 
+      radial-gradient(at 0% 0%, hsla(161, 71%, 15%, 0.15) 0px, transparent 50%),
+      radial-gradient(at 100% 0%, hsla(217, 91%, 15%, 0.15) 0px, transparent 50%),
+      radial-gradient(at 100% 100%, hsla(263, 71%, 15%, 0.15) 0px, transparent 50%),
+      radial-gradient(at 0% 100%, hsla(142, 71%, 15%, 0.15) 0px, transparent 50%);
+    background-attachment: fixed;
   }
 }
 
-.markdown-body h1 { @apply text-2xl font-bold mb-4 text-emerald-400; }
-.markdown-body h2 { @apply text-xl font-semibold mb-3 text-emerald-300; }
-.markdown-body h3 { @apply text-lg font-medium mb-2 text-emerald-200; }
-.markdown-body p { @apply mb-4 leading-relaxed text-zinc-300; }
-.markdown-body ul { @apply list-disc pl-6 mb-4 space-y-2 text-zinc-300; }
-.markdown-body ol { @apply list-decimal pl-6 mb-4 space-y-2 text-zinc-300; }
-.markdown-body code { @apply font-mono bg-zinc-800 px-1.5 py-0.5 rounded text-sm text-emerald-300; }
-.markdown-body pre { @apply bg-zinc-900 border border-zinc-800 rounded-xl p-4 mb-4 overflow-x-auto; }
-.markdown-body pre code { @apply bg-transparent p-0 text-zinc-200; }
+.glass {
+  @apply bg-zinc-900/40 backdrop-blur-xl border border-white/5;
+}
+
+.glass-dark {
+  @apply bg-black/40 backdrop-blur-2xl border border-white/5;
+}
+
+.glass-emerald {
+  @apply bg-emerald-500/10 backdrop-blur-lg border border-emerald-500/20;
+}
+
+.markdown-body {
+  @apply break-words;
+  overflow-wrap: anywhere;
+}
+.markdown-body h1 { @apply text-2xl font-bold mb-4 text-emerald-400 break-words; }
+.markdown-body h2 { @apply text-xl font-semibold mb-3 text-emerald-300 break-words; }
+.markdown-body h3 { @apply text-lg font-medium mb-2 text-emerald-200 break-words; }
+.markdown-body p { @apply mb-4 leading-relaxed text-zinc-300 break-words; }
+.markdown-body ul { @apply list-disc pl-5 mb-4 space-y-2 text-zinc-300; }
+.markdown-body ol { @apply list-decimal pl-5 mb-4 space-y-2 text-zinc-300; }
+.markdown-body code { @apply font-mono bg-zinc-800 px-1.5 py-0.5 rounded text-[13px] text-emerald-300 break-all; }
+.markdown-body pre { @apply bg-zinc-900 border border-zinc-800 rounded-xl p-3 mb-4 overflow-x-auto max-w-full; }
+.markdown-body pre code { @apply bg-transparent p-0 text-zinc-200 break-normal whitespace-pre; }
 .markdown-body blockquote { @apply border-l-4 border-emerald-500 pl-4 italic my-4 text-zinc-400; }
+.markdown-body img { @apply max-w-full h-auto rounded-lg; }
 
 .custom-scrollbar::-webkit-scrollbar {
   width: 4px;
