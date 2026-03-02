@@ -13,6 +13,7 @@ export default function LiveVoiceView({ onClose, isPremium }: LiveVoiceViewProps
   const [isMuted, setIsMuted] = useState(false);
   const [isSpeakerOff, setIsSpeakerOff] = useState(false);
   const [transcript, setTranscript] = useState<{ text: string; role: 'user' | 'model' }[]>([]);
+  const [isPlaying, setIsPlaying] = useState(false);
   const [error, setError] = useState<string | null>(null);
   
   const audioContextRef = useRef<AudioContext | null>(null);
@@ -22,6 +23,16 @@ export default function LiveVoiceView({ onClose, isPremium }: LiveVoiceViewProps
   const audioQueueRef = useRef<Int16Array[]>([]);
   const isPlayingRef = useRef(false);
   const nextStartTimeRef = useRef(0);
+
+  // Sync isPlayingRef with state for UI
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (isPlaying !== isPlayingRef.current) {
+        setIsPlaying(isPlayingRef.current);
+      }
+    }, 100);
+    return () => clearInterval(interval);
+  }, [isPlaying]);
 
   const startSession = async () => {
     if (!isPremium) {
@@ -35,7 +46,14 @@ export default function LiveVoiceView({ onClose, isPremium }: LiveVoiceViewProps
       setError(null);
 
       // Initialize Audio Context
-      audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 16000 });
+      const AudioContextClass = (window.AudioContext || (window as any).webkitAudioContext);
+      audioContextRef.current = new AudioContextClass({ sampleRate: 16000 });
+      
+      console.log("AudioContext initialized with sampleRate:", audioContextRef.current.sampleRate);
+
+      if (audioContextRef.current.state === 'suspended') {
+        await audioContextRef.current.resume();
+      }
       
       // Get Microphone Stream
       streamRef.current = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -44,7 +62,18 @@ export default function LiveVoiceView({ onClose, isPremium }: LiveVoiceViewProps
       // Create Processor for PCM encoding
       processorRef.current = audioContextRef.current.createScriptProcessor(4096, 1, 1);
       
-      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+      // Prevent feedback loop: connect processor to a gain node with 0 volume
+      const dummyGain = audioContextRef.current.createGain();
+      dummyGain.gain.value = 0;
+      processorRef.current.connect(dummyGain);
+      dummyGain.connect(audioContextRef.current.destination);
+      
+      const apiKey = process.env.GEMINI_API_KEY;
+      if (!apiKey || apiKey === "undefined") {
+        throw new Error("Gemini API anahtarı bulunamadı. Lütfen ayarlarınızı kontrol edin.");
+      }
+
+      const ai = new GoogleGenAI({ apiKey });
       
       sessionRef.current = await ai.live.connect({
         model: "gemini-2.5-flash-native-audio-preview-09-2025",
@@ -82,31 +111,57 @@ export default function LiveVoiceView({ onClose, isPremium }: LiveVoiceViewProps
             };
           },
           onmessage: async (message: LiveServerMessage) => {
+            console.log("Live API Message:", message);
+
             // Handle Interruption
             if (message.serverContent?.interrupted) {
               audioQueueRef.current = [];
               isPlayingRef.current = false;
+              if (audioContextRef.current) {
+                nextStartTimeRef.current = audioContextRef.current.currentTime;
+              }
               return;
             }
 
-            // Handle Audio Output
-            const base64Audio = message.serverContent?.modelTurn?.parts[0]?.inlineData?.data;
-            if (base64Audio && !isSpeakerOff) {
-              const binaryString = atob(base64Audio);
-              const bytes = new Uint8Array(binaryString.length);
-              for (let i = 0; i < binaryString.length; i++) {
-                bytes[i] = binaryString.charCodeAt(i);
-              }
-              const pcmData = new Int16Array(bytes.buffer);
-              audioQueueRef.current.push(pcmData);
-              if (!isPlayingRef.current) {
-                playNextInQueue();
+            // Handle User Transcription
+            const userParts = (message.serverContent as any)?.userContent?.parts || [];
+            for (const part of userParts) {
+              if (part.text) {
+                setTranscript(prev => [...prev, { text: part.text!, role: 'user' }]);
               }
             }
 
-            // Handle Transcriptions for UI
-            if (message.serverContent?.modelTurn?.parts[0]?.text) {
-              setTranscript(prev => [...prev, { text: message.serverContent!.modelTurn!.parts[0].text!, role: 'model' }]);
+            // Handle Model Turn (Audio + Text)
+            const modelParts = message.serverContent?.modelTurn?.parts || [];
+            for (const part of modelParts) {
+              if (part.inlineData?.data && !isSpeakerOff) {
+                try {
+                  const base64Audio = part.inlineData.data;
+                  const binaryString = atob(base64Audio);
+                  const bytes = new Uint8Array(binaryString.length);
+                  for (let i = 0; i < binaryString.length; i++) {
+                    bytes[i] = binaryString.charCodeAt(i);
+                  }
+                  
+                  // Ensure we have an even number of bytes for Int16
+                  const pcmData = new Int16Array(bytes.buffer, 0, Math.floor(bytes.length / 2));
+                  if (pcmData.length > 0) {
+                    audioQueueRef.current.push(pcmData);
+                    console.log(`Audio chunk received: ${pcmData.length} samples. Queue size: ${audioQueueRef.current.length}`);
+                  }
+                  
+                  if (!isPlayingRef.current) {
+                    playNextInQueue();
+                  }
+                } catch (e) {
+                  console.error("Error processing audio chunk:", e);
+                }
+              }
+
+              // Handle Transcriptions for UI
+              if (part.text) {
+                setTranscript(prev => [...prev, { text: part.text!, role: 'model' }]);
+              }
             }
           },
           onerror: (err) => {
@@ -133,17 +188,31 @@ export default function LiveVoiceView({ onClose, isPremium }: LiveVoiceViewProps
       return;
     }
 
+    // Ensure context is running
+    if (audioContextRef.current.state === 'suspended') {
+      await audioContextRef.current.resume();
+    }
+
     isPlayingRef.current = true;
     const pcmData = audioQueueRef.current.shift()!;
     
-    const audioBuffer = audioContextRef.current.createBuffer(1, pcmData.length, 16000);
+    if (pcmData.length === 0) {
+      playNextInQueue();
+      return;
+    }
+
+    // Gemini Live API output is typically 24000Hz
+    const outputSampleRate = 24000;
+    const audioBuffer = audioContextRef.current.createBuffer(1, pcmData.length, outputSampleRate);
     const channelData = audioBuffer.getChannelData(0);
     for (let i = 0; i < pcmData.length; i++) {
-      channelData[i] = pcmData[i] / 0x7FFF;
+      channelData[i] = pcmData[i] / 32768.0; // Normalize Int16 to Float32 [-1, 1]
     }
 
     const source = audioContextRef.current.createBufferSource();
     source.buffer = audioBuffer;
+    
+    // Connect to destination
     source.connect(audioContextRef.current.destination);
     
     const startTime = Math.max(audioContextRef.current.currentTime, nextStartTimeRef.current);
@@ -219,13 +288,40 @@ export default function LiveVoiceView({ onClose, isPremium }: LiveVoiceViewProps
             <motion.div
               key={i}
               animate={status === 'active' ? { 
-                height: [20, Math.random() * 80 + 20, 20],
-                opacity: [0.3, 1, 0.3]
-              } : { height: 4, opacity: 0.1 }}
+                height: isPlaying ? [20, Math.random() * 80 + 20, 20] : [20, Math.random() * 40 + 20, 20],
+                opacity: isPlaying ? [0.6, 1, 0.6] : [0.3, 0.6, 0.3],
+                backgroundColor: isPlaying ? "#3b82f6" : "#ef4444" // Blue when model is speaking, Red when listening
+              } : { height: 4, opacity: 0.1, backgroundColor: "#ef4444" }}
               transition={{ repeat: Infinity, duration: 0.5 + Math.random(), ease: "easeInOut" }}
-              className="w-1.5 bg-red-500 rounded-full"
+              className="w-1.5 rounded-full"
             />
           ))}
+        </div>
+
+        {/* Transcript Area */}
+        <div className="w-full h-48 glass rounded-2xl border border-white/5 p-4 overflow-y-auto flex flex-col gap-3 scrollbar-hide">
+          {transcript.length === 0 ? (
+            <div className="h-full flex items-center justify-center text-zinc-500 text-sm italic">
+              Henüz bir konuşma yok...
+            </div>
+          ) : (
+            transcript.map((t, i) => (
+              <motion.div 
+                key={i}
+                initial={{ opacity: 0, x: t.role === 'user' ? 10 : -10 }}
+                animate={{ opacity: 1, x: 0 }}
+                className={cn(
+                  "max-w-[80%] p-3 rounded-2xl text-sm",
+                  t.role === 'user' 
+                    ? "bg-zinc-800 text-zinc-200 self-end rounded-tr-none" 
+                    : "bg-red-500/10 text-red-200 self-start rounded-tl-none border border-red-500/20"
+                )}
+              >
+                {t.text}
+              </motion.div>
+            ))
+          )}
+          <div ref={(el) => el?.scrollIntoView({ behavior: 'smooth' })} />
         </div>
 
         {/* Controls */}
