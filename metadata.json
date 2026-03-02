@@ -1,5 +1,5 @@
 {
   "name": "DeneyapAI",
   "description": "Deneyap Atölyeleri ve TEKNOFEST takımları için akıllı proje üretici, kod hata ayıklayıcı ve mentor asistan.",
-  "requestFramePermissions": []
+  "requestFramePermissions": ["microphone"]
 }

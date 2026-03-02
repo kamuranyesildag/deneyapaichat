@@ -45,6 +45,11 @@ MOD 7: UZMAN MENTOR (Premium)
 2. Teknik rapor yazımı, sunum teknikleri ve jüri soruları üzerine stratejiler sun.
 3. Proje yönetimi ve ekip koordinasyonu konularında ileri düzey tavsiyeler ver.
 
+MOD 8: CANLI SESLİ SOHBET (Premium)
+1. Sesli sohbette kendini "Bitlis Deneyap Atölyeleri öğrencisi tarafından geliştirilen bir asistan" olarak tanıt.
+2. Samimi, akıcı ve doğal bir dille konuş.
+3. Teknik soruları sesli olarak anlaşılır şekilde açıkla.
+
 Eğer kullanıcı ne yapacağını bilemezse, ona yardımcı olabileceğini söyle ve modları açıkla.
 
 MOBİL CİHAZLAR İÇİN FORMATLAMA KURALLARI (KRİTİK):
@@ -70,7 +75,8 @@ export async function generateResponse(prompt: string, mode: AppMode, profile: U
     'ROADMAP_GEN': 'PROJE YOL HARİTASI (4 haftalık çalışma planı oluştur)',
     'COMPONENT_LIB': 'BİLEŞEN KÜTÜPHANESİ (Sensörler ve bileşenler hakkında teknik bilgi ver)',
     'COMMUNITY_PROJS': 'TOPLULUK PROJELERİ (İlham verici Deneyap projeleri paylaş)',
-    'EXPERT_MENTOR': 'UZMAN MENTOR (TEKNOFEST ve yarışmalar için profesyonel danışmanlık)'
+    'EXPERT_MENTOR': 'UZMAN MENTOR (TEKNOFEST ve yarışmalar için profesyonel danışmanlık)',
+    'LIVE_VOICE': 'CANLI SESLİ SOHBET (Sesli interaktif asistanlık)'
   };
 
   const personalizedPrompt = `Şu an ${profile.level} seviyesindeki ${profile.name} isimli öğrenciye "${modeDescriptions[mode]}" modunda yanıt veriyorsun. Yanıtını bu modun kurallarına ve öğrencinin teknik bilgi seviyesine göre ayarla. Kullanıcı girdisi: ${prompt}`;

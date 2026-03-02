@@ -34,7 +34,10 @@ import {
   VolumeX,
   Trash,
   Copy,
-  Check
+  Check,
+  Radio,
+  Headphones,
+  Waves
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import Markdown from 'react-markdown';
@@ -42,6 +45,7 @@ import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import { generateResponse } from './services/gemini';
 import { AppMode, Message, UserProfile, HistoryItem } from './types';
+import LiveVoiceView from './components/LiveVoiceView';
 
 interface ChangelogItem {
   version: string;
@@ -52,6 +56,19 @@ interface ChangelogItem {
 }
 
 const CHANGELOG: ChangelogItem[] = [
+  {
+    version: '2.2.0',
+    date: '2 Mart 2026',
+    title: 'Live Voice: Canlı Sesli Sohbet',
+    type: 'major',
+    changes: [
+      'Pro üyeler için "Live Voice" (Canlı Sesli Sohbet) modu eklendi.',
+      'Anlık Dinleme (VAD): Konuşma bitene kadar aktif kalan akıllı mikrofon.',
+      'Doğal Seslendirme: Gemini\'den gelen yanıtlar akıcı insan sesiyle seslendirilir.',
+      'Akıllı Kesme (Interruption): Siz konuşmaya başladığınızda asistan sizi dinlemek için susar.',
+      'Bitlis Stüdyo Kimliği: Asistan artık Bitlis Deneyap Atölyeleri kimliğiyle konuşuyor.'
+    ]
+  },
   {
     version: '2.1.0',
     date: '2 Mart 2026',
@@ -123,6 +140,7 @@ export default function App() {
   const [firebaseUser, setFirebaseUser] = useState<FirebaseUser | null>(null);
   const [isListening, setIsListening] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
+  const [isLiveActive, setIsLiveActive] = useState(false);
   const [showQuickActions, setShowQuickActions] = useState(true);
   const [copiedIdx, setCopiedIdx] = useState<number | null>(null);
 
@@ -433,7 +451,7 @@ export default function App() {
   };
 
   const handleModeChange = (newMode: AppMode) => {
-    const premiumModes: AppMode[] = ['AI_OPTIMIZER', 'ROADMAP_GEN', 'EXPERT_MENTOR'];
+    const premiumModes: AppMode[] = ['AI_OPTIMIZER', 'ROADMAP_GEN', 'EXPERT_MENTOR', 'LIVE_VOICE'];
     if (premiumModes.includes(newMode) && profile?.subscriptionTier !== 'PRO') {
       setShowPremiumModal(true);
       setPremiumStep(1);
@@ -784,6 +802,25 @@ export default function App() {
                     <span className="font-semibold text-sm">Uzman Mentor</span>
                   </div>
                   {!profile?.isPremium && <Key className="w-3 h-3 text-amber-500/50" />}
+                </button>
+
+                <button
+                  onClick={() => handleModeChange('LIVE_VOICE')}
+                  className={cn(
+                    "w-full flex items-center justify-between px-4 py-2.5 rounded-xl transition-all duration-200 group",
+                    mode === 'LIVE_VOICE' && activeTab === 'chat'
+                      ? "bg-red-500/10 text-red-400 border border-red-500/20" 
+                      : "text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200"
+                  )}
+                >
+                  <div className="flex items-center gap-3">
+                    <Radio className={cn("w-4 h-4", mode === 'LIVE_VOICE' ? "text-red-400 animate-pulse" : "group-hover:text-zinc-200")} />
+                    <span className="font-semibold text-sm">Canlı Sesli Sohbet</span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <span className="text-[8px] font-black px-1 rounded bg-red-500 text-white uppercase">Pro</span>
+                    {!profile?.isPremium && <Key className="w-3 h-3 text-amber-500/50" />}
+                  </div>
                 </button>
 
                 <div className="pt-4 px-4 py-2 text-[10px] font-bold uppercase tracking-[0.2em] text-zinc-500 mb-1">Kişisel</div>
@@ -1202,6 +1239,25 @@ export default function App() {
             {!profile?.isPremium && <Key className="w-3 h-3 text-amber-500/50" />}
           </button>
 
+          <button
+            onClick={() => handleModeChange('LIVE_VOICE')}
+            className={cn(
+              "w-full flex items-center justify-between px-4 py-2.5 rounded-xl transition-all duration-200 group",
+              mode === 'LIVE_VOICE' && activeTab === 'chat'
+                ? "bg-red-500/10 text-red-400 border border-red-500/20 shadow-lg shadow-red-500/5" 
+                : "text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200"
+            )}
+          >
+            <div className="flex items-center gap-3">
+              <Radio className={cn("w-4 h-4", mode === 'LIVE_VOICE' ? "text-red-400 animate-pulse" : "group-hover:text-zinc-200")} />
+              <span className="font-semibold text-sm">Canlı Sesli Sohbet</span>
+            </div>
+            <div className="flex items-center gap-1">
+              <span className="text-[8px] font-black px-1 rounded bg-red-500 text-white uppercase">Pro</span>
+              {!profile?.isPremium && <Key className="w-3 h-3 text-amber-500/50" />}
+            </div>
+          </button>
+
           <div className="pt-4 px-4 py-2 text-[10px] font-bold uppercase tracking-[0.2em] text-zinc-500 mb-1">Kişisel</div>
           <button
             onClick={() => setActiveTab('history')}
@@ -1321,6 +1377,7 @@ export default function App() {
                  mode === 'ROADMAP_GEN' ? 'Proje Yol Haritası' :
                  mode === 'COMPONENT_LIB' ? 'Bileşen Kütüphanesi' :
                  mode === 'COMMUNITY_PROJS' ? 'Topluluk Projeleri' :
+                 mode === 'LIVE_VOICE' ? 'Canlı Sesli Sohbet' :
                  'Uzman Mentor'
                ) : activeTab === 'history' ? 'Geçmiş Kayıtlar' : 'Kullanıcı Profili'}
              </span>
@@ -1352,7 +1409,13 @@ export default function App() {
         {/* Tab Content */}
         <div className="flex-1 overflow-y-auto">
           {activeTab === 'chat' ? (
-            <div className="p-4 md:p-8 space-y-6">
+            mode === 'LIVE_VOICE' ? (
+              <LiveVoiceView 
+                isPremium={profile?.isPremium || false} 
+                onClose={() => setMode('PROJECT_GEN')} 
+              />
+            ) : (
+              <div className="p-4 md:p-8 space-y-6">
               <AnimatePresence initial={false}>
                 {messages.map((msg, idx) => (
                   <motion.div
@@ -1430,7 +1493,7 @@ export default function App() {
               )}
               <div ref={messagesEndRef} />
             </div>
-          ) : activeTab === 'history' ? (
+          ) ) : activeTab === 'history' ? (
             <div className="p-4 md:p-8 max-w-4xl mx-auto space-y-4">
               <div className="flex items-center justify-between mb-6">
                 <div className="flex items-center gap-3">
@@ -1472,9 +1535,13 @@ export default function App() {
                         <div className="flex items-center gap-3">
                           <div className={cn(
                             "p-2 rounded-lg",
-                            item.mode === 'PROJECT_GEN' ? "bg-emerald-500/10 text-emerald-400" : "bg-blue-500/10 text-blue-400"
+                            item.mode === 'PROJECT_GEN' ? "bg-emerald-500/10 text-emerald-400" : 
+                            item.mode === 'LIVE_VOICE' ? "bg-red-500/10 text-red-400" :
+                            "bg-blue-500/10 text-blue-400"
                           )}>
-                            {item.mode === 'PROJECT_GEN' ? <Lightbulb className="w-4 h-4" /> : <Bug className="w-4 h-4" />}
+                            {item.mode === 'PROJECT_GEN' ? <Lightbulb className="w-4 h-4" /> : 
+                             item.mode === 'LIVE_VOICE' ? <Radio className="w-4 h-4" /> :
+                             <Bug className="w-4 h-4" />}
                           </div>
                           <div>
                             <div className="text-sm font-bold text-zinc-200">{item.title}</div>
@@ -1678,7 +1745,7 @@ export default function App() {
         </div>
 
         {/* Input Area (Only in Chat Tab) */}
-        {activeTab === 'chat' && (
+        {activeTab === 'chat' && mode !== 'LIVE_VOICE' && (
           <div className="p-4 md:p-8 pt-0 fixed bottom-0 left-0 right-0 lg:relative bg-zinc-950/80 backdrop-blur-lg lg:bg-transparent z-20">
             {isLimitReached ? (
               <motion.div 
