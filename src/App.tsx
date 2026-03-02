@@ -362,7 +362,27 @@ export default function App() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!input.trim() || isLoading || cooldown > 0 || isLimitReached || !profile) return;
+    if (!input.trim() || isLoading || !profile) return;
+
+    if (cooldown > 0) {
+      const assistantMessage: Message = {
+        role: 'assistant',
+        content: `Lütfen biraz bekle! DeneyapAI zekası dinleniyor. ${cooldown} saniye sonra tekrar sorabilirsin. ⏳`,
+        timestamp: Date.now(),
+      };
+      setMessages(prev => [...prev, assistantMessage]);
+      return;
+    }
+
+    if (isLimitReached) {
+      const assistantMessage: Message = {
+        role: 'assistant',
+        content: 'Günlük ücretsiz soru limitine ulaştın! 🚀 Daha fazla soru sormak ve özel modlara erişmek için Pro üye olabilirsin.',
+        timestamp: Date.now(),
+      };
+      setMessages(prev => [...prev, assistantMessage]);
+      return;
+    }
 
     const userMessage: Message = {
       role: 'user',
