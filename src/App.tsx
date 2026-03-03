@@ -1430,10 +1430,16 @@ export default function App() {
         <div className="flex-1 overflow-y-auto">
           {activeTab === 'chat' ? (
             mode === 'LIVE_VOICE' ? (
-              <LiveVoiceView 
-                isPremium={profile?.isPremium || false} 
-                onClose={() => setMode('PROJECT_GEN')} 
-              />
+              <div className="flex flex-col items-center justify-center h-full text-zinc-500 gap-4">
+                <Radio className="w-12 h-12 animate-pulse text-red-500/50" />
+                <p className="text-sm font-medium">Canlı Sesli Sohbet Modu Aktif</p>
+                <button 
+                  onClick={() => setMode('PROJECT_GEN')}
+                  className="px-6 py-2 bg-zinc-800 hover:bg-zinc-700 text-white rounded-xl text-xs font-bold transition-all"
+                >
+                  Sohbetten Çık
+                </button>
+              </div>
             ) : (
               <div className="p-4 md:p-8 space-y-6">
               <AnimatePresence initial={false}>
@@ -1884,7 +1890,23 @@ export default function App() {
             </div>
           </div>
         )}
-      </main>
+        {/* Live Voice Overlay */}
+      <AnimatePresence>
+        {mode === 'LIVE_VOICE' && activeTab === 'chat' && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[100]"
+          >
+            <LiveVoiceView 
+              isPremium={profile?.isPremium || profile?.subscriptionTier === 'PRO'} 
+              onClose={() => setMode('PROJECT_GEN')} 
+            />
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </main>
 
       {/* Mobile Navigation */}
       <div className="lg:hidden fixed bottom-0 left-0 right-0 bg-zinc-900/80 backdrop-blur-lg border-t border-zinc-800 px-6 py-3 flex items-center justify-between z-50">

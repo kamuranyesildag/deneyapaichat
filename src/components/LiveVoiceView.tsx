@@ -23,20 +23,38 @@ export default function LiveVoiceView({ onClose, isPremium }: LiveVoiceViewProps
   const audioQueueRef = useRef<Int16Array[]>([]);
   const isPlayingRef = useRef(false);
   const nextStartTimeRef = useRef(0);
+  const statusRef = useRef(status);
+  const isMutedRef = useRef(isMuted);
+
+  // Sync refs with state
+  useEffect(() => { statusRef.current = status; }, [status]);
+  useEffect(() => { isMutedRef.current = isMuted; }, [isMuted]);
+
+  console.log("LiveVoiceView Render:", { status, isPlaying, error, isPremium });
 
   // Sync isPlayingRef with state for UI
   useEffect(() => {
+    let mounted = true;
     const interval = setInterval(() => {
-      if (isPlaying !== isPlayingRef.current) {
+      if (mounted && isPlaying !== isPlayingRef.current) {
         setIsPlaying(isPlayingRef.current);
       }
     }, 100);
-    return () => clearInterval(interval);
+    return () => {
+      mounted = false;
+      clearInterval(interval);
+    };
   }, [isPlaying]);
 
   const startSession = async () => {
     if (!isPremium) {
       setError("Bu özellik sadece Pro üyeler içindir.");
+      setStatus('error');
+      return;
+    }
+
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      setError("Tarayıcınız mikrofon erişimini desteklemiyor veya güvenli bir bağlantı (HTTPS) üzerinden çalışmıyor.");
       setStatus('error');
       return;
     }
@@ -89,79 +107,94 @@ export default function LiveVoiceView({ onClose, isPremium }: LiveVoiceViewProps
         callbacks: {
           onopen: () => {
             setStatus('active');
-            source.connect(processorRef.current!);
-            processorRef.current!.connect(audioContextRef.current!.destination);
+            console.log("Live API Connection opened");
             
-            processorRef.current!.onaudioprocess = (e) => {
-              if (isMuted || status !== 'active') return;
-              
-              const inputData = e.inputBuffer.getChannelData(0);
-              // Convert Float32 to Int16 PCM
-              const pcmData = new Int16Array(inputData.length);
-              for (let i = 0; i < inputData.length; i++) {
-                pcmData[i] = Math.max(-1, Math.min(1, inputData[i])) * 0x7FFF;
-              }
-              
-              // Base64 encode
-              const base64Data = btoa(String.fromCharCode(...new Uint8Array(pcmData.buffer)));
-              
-              sessionRef.current.sendRealtimeInput({
-                media: { data: base64Data, mimeType: 'audio/pcm;rate=16000' }
-              });
-            };
+            if (processorRef.current) {
+              processorRef.current.onaudioprocess = (e) => {
+                if (isMutedRef.current || statusRef.current !== 'active') return;
+                
+                const inputData = e.inputBuffer.getChannelData(0);
+                const pcmData = new Int16Array(inputData.length);
+                for (let i = 0; i < inputData.length; i++) {
+                  pcmData[i] = Math.max(-1, Math.min(1, inputData[i])) * 0x7FFF;
+                }
+                
+                if (sessionRef.current) {
+                  // Efficient base64 conversion for PCM data
+                  const uint8Array = new Uint8Array(pcmData.buffer);
+                  let binary = '';
+                  const len = uint8Array.byteLength;
+                  for (let i = 0; i < len; i++) {
+                    binary += String.fromCharCode(uint8Array[i]);
+                  }
+                  const base64Data = btoa(binary);
+
+                  sessionRef.current.sendRealtimeInput({
+                    media: { data: base64Data, mimeType: 'audio/pcm;rate=16000' }
+                  });
+                }
+              };
+              source.connect(processorRef.current);
+            }
           },
           onmessage: async (message: LiveServerMessage) => {
             console.log("Live API Message:", message);
 
-            // Handle Interruption
-            if (message.serverContent?.interrupted) {
-              audioQueueRef.current = [];
-              isPlayingRef.current = false;
-              if (audioContextRef.current) {
-                nextStartTimeRef.current = audioContextRef.current.currentTime;
+            try {
+              // Handle Interruption
+              if (message.serverContent?.interrupted) {
+                console.log("Session interrupted");
+                audioQueueRef.current = [];
+                isPlayingRef.current = false;
+                if (audioContextRef.current) {
+                  nextStartTimeRef.current = audioContextRef.current.currentTime;
+                }
+                return;
               }
-              return;
-            }
 
-            // Handle User Transcription
-            const userParts = (message.serverContent as any)?.userContent?.parts || [];
-            for (const part of userParts) {
-              if (part.text) {
-                setTranscript(prev => [...prev, { text: part.text!, role: 'user' }]);
-              }
-            }
-
-            // Handle Model Turn (Audio + Text)
-            const modelParts = message.serverContent?.modelTurn?.parts || [];
-            for (const part of modelParts) {
-              if (part.inlineData?.data && !isSpeakerOff) {
-                try {
-                  const base64Audio = part.inlineData.data;
-                  const binaryString = atob(base64Audio);
-                  const bytes = new Uint8Array(binaryString.length);
-                  for (let i = 0; i < binaryString.length; i++) {
-                    bytes[i] = binaryString.charCodeAt(i);
-                  }
-                  
-                  // Ensure we have an even number of bytes for Int16
-                  const pcmData = new Int16Array(bytes.buffer, 0, Math.floor(bytes.length / 2));
-                  if (pcmData.length > 0) {
-                    audioQueueRef.current.push(pcmData);
-                    console.log(`Audio chunk received: ${pcmData.length} samples. Queue size: ${audioQueueRef.current.length}`);
-                  }
-                  
-                  if (!isPlayingRef.current) {
-                    playNextInQueue();
-                  }
-                } catch (e) {
-                  console.error("Error processing audio chunk:", e);
+              // Handle User Transcription
+              const userParts = (message.serverContent as any)?.userContent?.parts || [];
+              for (const part of userParts) {
+                if (part.text) {
+                  setTranscript(prev => [...prev, { text: part.text!, role: 'user' }]);
                 }
               }
 
-              // Handle Transcriptions for UI
-              if (part.text) {
-                setTranscript(prev => [...prev, { text: part.text!, role: 'model' }]);
+              // Handle Model Turn (Audio + Text)
+              const modelParts = message.serverContent?.modelTurn?.parts || [];
+              for (const part of modelParts) {
+                if (part.inlineData?.data && !isSpeakerOff) {
+                  try {
+                    const base64Audio = part.inlineData.data;
+                    if (typeof base64Audio !== 'string') continue;
+
+                    const binaryString = atob(base64Audio);
+                    const bytes = new Uint8Array(binaryString.length);
+                    for (let i = 0; i < binaryString.length; i++) {
+                      bytes[i] = binaryString.charCodeAt(i);
+                    }
+                    
+                    // Ensure we have an even number of bytes for Int16
+                    const pcmData = new Int16Array(bytes.buffer, 0, Math.floor(bytes.length / 2));
+                    if (pcmData.length > 0) {
+                      audioQueueRef.current.push(pcmData);
+                    }
+                    
+                    if (!isPlayingRef.current) {
+                      playNextInQueue();
+                    }
+                  } catch (e) {
+                    console.error("Error processing audio chunk:", e);
+                  }
+                }
+
+                // Handle Transcriptions for UI
+                if (part.text) {
+                  setTranscript(prev => [...prev, { text: part.text!, role: 'model' }]);
+                }
               }
+            } catch (err) {
+              console.error("Error in onmessage handler:", err);
             }
           },
           onerror: (err) => {
@@ -252,7 +285,15 @@ export default function LiveVoiceView({ onClose, isPremium }: LiveVoiceViewProps
   }, []);
 
   return (
-    <div className="flex flex-col h-full items-center justify-center p-4 md:p-8 relative overflow-hidden">
+    <div className="fixed inset-0 z-[100] bg-zinc-950 flex flex-col items-center justify-center p-4 md:p-8 overflow-hidden">
+      {/* Close Button */}
+      <button 
+        onClick={onClose}
+        className="absolute top-6 right-6 p-3 bg-zinc-900/50 hover:bg-zinc-800 border border-white/10 rounded-2xl text-zinc-400 hover:text-white transition-all z-20"
+      >
+        <X className="w-6 h-6" />
+      </button>
+
       {/* Background Animation */}
       <div className="absolute inset-0 z-0 pointer-events-none opacity-20">
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-red-500/20 rounded-full blur-[120px] animate-pulse" />
