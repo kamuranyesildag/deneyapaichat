@@ -61,12 +61,13 @@ import { twMerge } from 'tailwind-merge';
 import { generateResponse } from './services/gemini';
 import { AppMode, Message, UserProfile, HistoryItem } from './types';
 import LiveVoiceView from './components/LiveVoiceView';
-import * as otplib from 'otplib';
+import { OTP } from 'otplib';
 import { QRCodeSVG } from 'qrcode.react';
 
-const { authenticator } = otplib as any;
+// Create a robust authenticator instance for otplib v13+
+const authenticator = new OTP();
 
-// Ensure authenticator is available
+// Check if otplib is loaded
 if (!authenticator) {
   console.error("otplib authenticator is not initialized correctly");
 }
@@ -179,7 +180,11 @@ export default function App() {
       console.log("Secret generated:", secret ? "Yes" : "No");
       
       // Generate otpauth URL for QR code
-      const otpauth = authenticator.keyuri(profile?.email || 'user', 'DeneyapAI', secret);
+      const otpauth = authenticator.generateURI({
+        secret,
+        label: profile?.email || 'user',
+        issuer: 'DeneyapAI'
+      });
       console.log("OTPAuth URL generated:", otpauth ? "Yes" : "No");
       
       if (!secret || !otpauth) {
@@ -202,8 +207,11 @@ export default function App() {
       return;
     }
 
-    const isValid = authenticator.check(twoFAVerifyCode, twoFASecret);
-    if (isValid) {
+    const result = authenticator.verifySync({
+      token: twoFAVerifyCode,
+      secret: twoFASecret
+    });
+    if (result.valid) {
       const updatedProfile: UserProfile = { 
         ...profile!, 
         twoFAEnabled: true, 
@@ -233,8 +241,11 @@ export default function App() {
   const handle2FAVerify = () => {
     if (!profile?.twoFASecret) return;
     
-    const isValid = authenticator.check(twoFAVerifyCode, profile.twoFASecret);
-    if (isValid) {
+    const result = authenticator.verifySync({
+      token: twoFAVerifyCode,
+      secret: profile.twoFASecret
+    });
+    if (result.valid) {
       setFirebaseUser(tempFirebaseUser);
       setShow2FAVerify(false);
       setTwoFAVerifyCode('');
@@ -403,20 +414,41 @@ export default function App() {
       alert("Google ile giriş şu anda devre dışı. Lütfen yönetici ile iletişime geçin.");
       return;
     }
+
+    // Check for common configuration error
+    const authDomain = import.meta.env.VITE_FIREBASE_AUTH_DOMAIN;
+    if (authDomain && (authDomain.includes("run.app") || authDomain.includes("vercel.app"))) {
+      const errorMsg = "HATA: VITE_FIREBASE_AUTH_DOMAIN yanlış yapılandırılmış. \n\nBu değer 'project-id.firebaseapp.com' şeklinde olmalıdır, uygulamanın kendi URL'si değil. Lütfen .env dosyanızı güncelleyin.";
+      setAuthError(errorMsg);
+      alert(errorMsg);
+      return;
+    }
     try {
       setIsLoading(true);
+      setAuthError("");
+      
+      // Add a small delay to ensure UI updates
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      console.log("Calling signInWithPopup...");
       const result = await signInWithPopup(auth, googleProvider);
       console.log("Google Sign-In Success:", result.user.email);
     } catch (error: any) {
       console.error("Google Sign-In Error Details:", error);
       let msg = "Giriş yapılırken bir hata oluştu.";
-      if (error.code === 'auth/unauthorized-domain') {
-        msg += "\n\nBu alan adı (domain) Firebase Console'da 'Yetkilendirilmiş Alan Adları' listesine eklenmemiş.";
+      
+      if (error.code === 'auth/popup-blocked') {
+        msg = "Tarayıcınız giriş penceresini engelledi. Lütfen adres çubuğundaki engelleyiciyi kaldırın ve tekrar deneyin.";
+      } else if (error.code === 'auth/unauthorized-domain') {
+        msg = "Bu alan adı (domain) Firebase Console'da 'Yetkilendirilmiş Alan Adları' listesine eklenmemiş. Lütfen Firebase ayarlarınızı kontrol edin.";
       } else if (error.code === 'auth/operation-not-allowed') {
-        msg += "\n\nGoogle ile Giriş yöntemi Firebase Console'da etkinleştirilmemiş.";
+        msg = "Google ile Giriş yöntemi Firebase Console'da etkinleştirilmemiş.";
+      } else if (error.code === 'auth/popup-closed-by-user') {
+        msg = "Giriş penceresi kapatıldı. Lütfen işlemi tamamlayın.";
       } else {
-        msg += `\n\nHata Kodu: ${error.code || 'Bilinmiyor'}`;
+        msg += `\n\nHata: ${error.message || error.code || 'Bilinmiyor'}`;
       }
+      setAuthError(msg);
       alert(msg);
     } finally {
       setIsLoading(false);
@@ -901,8 +933,12 @@ export default function App() {
                           disabled={isLoading}
                           className="w-full bg-white text-zinc-900 font-bold py-4 rounded-2xl transition-all flex items-center justify-center gap-3 hover:bg-zinc-100 active:scale-[0.98] disabled:opacity-50"
                         >
-                          <img src="https://www.google.com/favicon.ico" className="w-5 h-5" alt="Google" />
-                          Google ile Devam Et
+                          {isLoading ? (
+                            <RefreshCw className="w-5 h-5 animate-spin text-zinc-900" />
+                          ) : (
+                            <img src="https://www.google.com/favicon.ico" className="w-5 h-5" alt="Google" />
+                          )}
+                          {isLoading ? 'Giriş Yapılıyor...' : 'Google ile Devam Et'}
                         </button>
 
                         <button 

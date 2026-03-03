@@ -29,7 +29,8 @@ export const isFirebaseConfigured = !!(
   firebaseConfig.apiKey && 
   firebaseConfig.apiKey.length > 10 && 
   !firebaseConfig.apiKey.includes("YOUR_") &&
-  firebaseConfig.authDomain
+  firebaseConfig.authDomain &&
+  !firebaseConfig.authDomain.includes("YOUR_")
 );
 
 let app: FirebaseApp | undefined;
@@ -38,9 +39,9 @@ let analytics: Analytics | undefined;
 let db: Firestore | undefined;
 
 if (isFirebaseConfigured) {
-  // Check if authDomain is likely incorrect (should be firebaseapp.com, not vercel.app)
-  if (firebaseConfig.authDomain?.includes("vercel.app")) {
-    console.error("CRITICAL: VITE_FIREBASE_AUTH_DOMAIN is set to a Vercel URL. This will break Google Login. It must be your Firebase 'authDomain' (e.g., project-id.firebaseapp.com).");
+  // Check if authDomain is likely incorrect
+  if (firebaseConfig.authDomain?.includes("vercel.app") || firebaseConfig.authDomain?.includes("run.app")) {
+    console.error("CRITICAL: VITE_FIREBASE_AUTH_DOMAIN is likely incorrect. It must be your Firebase 'authDomain' (e.g., project-id.firebaseapp.com), NOT your app's deployment URL.");
   }
   
   try {
