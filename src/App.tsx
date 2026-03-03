@@ -455,7 +455,7 @@ export default function App() {
       let errorMessage = 'Bir hata oluştu. Lütfen internet bağlantını kontrol et ve tekrar dene.';
       
       if (error.message === "API_KEY_MISSING") {
-        errorMessage = 'Gemini API anahtarı bulunamadı. Lütfen Netlify panelinden GEMINI_API_KEY ortam değişkenini ayarladığınızdan emin olun.';
+        errorMessage = 'Gemini API anahtarı bulunamadı. Lütfen Vercel panelinden GEMINI_API_KEY ortam değişkenini ayarladığınızdan emin olun.';
       } else if (error.message?.includes('API key not valid')) {
         errorMessage = 'Geçersiz API anahtarı. Lütfen API anahtarınızı kontrol edin.';
       }
@@ -682,7 +682,7 @@ export default function App() {
                 ) : (
                   <div className="p-4 bg-amber-500/5 border border-amber-500/10 rounded-xl text-center">
                     <p className="text-[10px] text-amber-500/60 font-bold uppercase tracking-widest mb-1">Bulut Senkronizasyonu Devre Dışı</p>
-                    <p className="text-[9px] text-zinc-500 leading-relaxed">Netlify panelinden Firebase API anahtarlarını ekleyerek Google ile girişi aktif edebilirsiniz.</p>
+                    <p className="text-[9px] text-zinc-500 leading-relaxed">Vercel panelinden Firebase API anahtarlarını ekleyerek Google ile girişi aktif edebilirsiniz.</p>
                   </div>
                 )}
               </form>
@@ -1760,7 +1760,7 @@ export default function App() {
                     {!isFirebaseConfigured && (
                       <div className="mt-4 p-3 bg-amber-500/5 border border-amber-500/10 rounded-xl">
                         <p className="text-[10px] text-amber-500/60 font-bold uppercase tracking-widest mb-1">Bulut Senkronizasyonu Kapalı</p>
-                        <p className="text-[9px] text-zinc-500">Netlify panelinden Firebase ayarlarını yaparak bulut kaydını aktif edebilirsiniz.</p>
+                        <p className="text-[9px] text-zinc-500">Vercel panelinden Firebase ayarlarını yaparak bulut kaydını aktif edebilirsiniz.</p>
                       </div>
                     )}
                   </div>
