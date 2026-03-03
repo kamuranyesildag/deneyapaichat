@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { auth, googleProvider, isFirebaseConfigured } from './services/firebase';
+import { auth, googleProvider, isFirebaseConfigured, db } from './services/firebase';
 import { 
   signInWithPopup, 
   signOut, 
@@ -7,11 +7,9 @@ import {
   User as FirebaseUser,
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
-  signInWithPhoneNumber,
-  RecaptchaVerifier,
-  ConfirmationResult,
   sendPasswordResetEmail
 } from 'firebase/auth';
+import { doc, setDoc, getDoc } from 'firebase/firestore';
 import { 
   Cpu, 
   Bug, 
@@ -51,8 +49,6 @@ import {
   Waves,
   Mail,
   Lock,
-  Phone,
-  Smartphone,
   Shield,
   Eye,
   EyeOff,
@@ -65,6 +61,15 @@ import { twMerge } from 'tailwind-merge';
 import { generateResponse } from './services/gemini';
 import { AppMode, Message, UserProfile, HistoryItem } from './types';
 import LiveVoiceView from './components/LiveVoiceView';
+import * as otplib from 'otplib';
+import { QRCodeSVG } from 'qrcode.react';
+
+const { authenticator } = otplib as any;
+
+// Ensure authenticator is available
+if (!authenticator) {
+  console.error("otplib authenticator is not initialized correctly");
+}
 
 interface ChangelogItem {
   version: string;
@@ -152,6 +157,114 @@ export default function App() {
   const [showPrivacyModal, setShowPrivacyModal] = useState(false);
   const [showChangelog, setShowChangelog] = useState(false);
   const [showMobileMenu, setShowMobileMenu] = useState(false);
+  const [show2FAModal, setShow2FAModal] = useState(false);
+  const [twoFASecret, setTwoFASecret] = useState('');
+  const [twoFAQRCode, setTwoFAQRCode] = useState('');
+  const [twoFAVerifyCode, setTwoFAVerifyCode] = useState('');
+  const [is2FAEnabled, setIs2FAEnabled] = useState(false);
+  const [twoFAError, setTwoFAError] = useState('');
+
+  const handleEnable2FA = () => {
+    try {
+      if (profile?.twoFAEnabled) return;
+      
+      console.log("Enabling 2FA for profile:", profile?.email);
+      
+      if (!authenticator) {
+        throw new Error("Authenticator kütüphanesi yüklenemedi.");
+      }
+
+      // Generate a secret
+      const secret = authenticator.generateSecret();
+      console.log("Secret generated:", secret ? "Yes" : "No");
+      
+      // Generate otpauth URL for QR code
+      const otpauth = authenticator.keyuri(profile?.email || 'user', 'DeneyapAI', secret);
+      console.log("OTPAuth URL generated:", otpauth ? "Yes" : "No");
+      
+      if (!secret || !otpauth) {
+        throw new Error("2FA anahtarı oluşturulamadı.");
+      }
+
+      setTwoFASecret(secret);
+      setTwoFAQRCode(otpauth);
+      setShow2FAModal(true);
+      setTwoFAError('');
+    } catch (error: any) {
+      console.error("2FA Error:", error);
+      alert("2FA sistemi şu anda kullanılamıyor: " + (error.message || "Bilinmeyen hata"));
+    }
+  };
+
+  const verifyAndEnable2FA = async () => {
+    if (!twoFAVerifyCode) {
+      setTwoFAError('Lütfen doğrulama kodunu girin.');
+      return;
+    }
+
+    const isValid = authenticator.check(twoFAVerifyCode, twoFASecret);
+    if (isValid) {
+      const updatedProfile: UserProfile = { 
+        ...profile!, 
+        twoFAEnabled: true, 
+        twoFASecret 
+      };
+      setProfile(updatedProfile);
+      localStorage.setItem('tekno_nova_profile', JSON.stringify(updatedProfile));
+      
+      if (firebaseUser && db) {
+        try {
+          await setDoc(doc(db, 'users', firebaseUser.uid), updatedProfile, { merge: true });
+        } catch (e) {
+          console.error("Error saving 2FA to Firebase:", e);
+        }
+      }
+      
+      setShow2FAModal(false);
+      setTwoFAVerifyCode('');
+      setTwoFASecret('');
+      setTwoFAQRCode('');
+      alert('2FA Başarıyla Aktif Edildi!');
+    } else {
+      setTwoFAError('Hatalı kod! Lütfen Authenticator uygulamanızdaki kodu kontrol edin.');
+    }
+  };
+
+  const handle2FAVerify = () => {
+    if (!profile?.twoFASecret) return;
+    
+    const isValid = authenticator.check(twoFAVerifyCode, profile.twoFASecret);
+    if (isValid) {
+      setFirebaseUser(tempFirebaseUser);
+      setShow2FAVerify(false);
+      setTwoFAVerifyCode('');
+      setTwoFAError('');
+    } else {
+      setTwoFAError('Hatalı kod! Lütfen Authenticator uygulamanızdaki kodu kontrol edin.');
+    }
+  };
+  useEffect(() => {
+    const handleContextMenu = (e: MouseEvent) => e.preventDefault();
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // F12
+      if (e.keyCode === 123) e.preventDefault();
+      // Ctrl+Shift+I, Ctrl+Shift+J, Ctrl+Shift+C, Ctrl+U
+      if (
+        (e.ctrlKey && e.shiftKey && (e.keyCode === 73 || e.keyCode === 74 || e.keyCode === 67)) ||
+        (e.ctrlKey && e.keyCode === 85)
+      ) {
+        e.preventDefault();
+      }
+    };
+
+    document.addEventListener('contextmenu', handleContextMenu);
+    document.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      document.removeEventListener('contextmenu', handleContextMenu);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, []);
   const [premiumStep, setPremiumStep] = useState<1 | 2>(1);
   const [licenseInput, setLicenseInput] = useState('');
   const [licenseError, setLicenseError] = useState('');
@@ -164,31 +277,50 @@ export default function App() {
   const [copiedIdx, setCopiedIdx] = useState<number | null>(null);
 
   // New Auth States
-  const [authView, setAuthView] = useState<'onboarding' | 'email' | 'phone'>('onboarding');
+  const [authView, setAuthView] = useState<'onboarding' | 'email'>('onboarding');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isRegistering, setIsRegistering] = useState(false);
-  const [phoneNumber, setPhoneNumber] = useState('');
-  const [verificationCode, setVerificationCode] = useState('');
-  const [confirmationResult, setConfirmationResult] = useState<ConfirmationResult | null>(null);
   const [showPassword, setShowPassword] = useState(false);
   const [authError, setAuthError] = useState('');
-  const [phoneStep, setPhoneStep] = useState<'number' | 'code'>('number');
   const [showForgotPassword, setShowForgotPassword] = useState(false);
+  const [show2FAVerify, setShow2FAVerify] = useState(false);
+  const [tempFirebaseUser, setTempFirebaseUser] = useState<FirebaseUser | null>(null);
   const [resetSent, setResetSent] = useState(false);
 
   // Firebase Auth Listener
   useEffect(() => {
     if (!auth) return;
     
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
       console.log("Auth State Changed:", user ? "User logged in" : "No user");
-      setFirebaseUser(user);
       
       if (user) {
-        // Sync profile with Firebase user if needed
+        // Fetch profile from Firestore
+        let fetchedProfile: UserProfile | null = null;
+        if (db) {
+          try {
+            const userDoc = await getDoc(doc(db, 'users', user.uid));
+            if (userDoc.exists()) {
+              fetchedProfile = userDoc.data() as UserProfile;
+            }
+          } catch (e) {
+            console.error("Error fetching profile from Firestore:", e);
+          }
+        }
+
+        // If 2FA is enabled, we need to verify before setting firebaseUser
+        if (fetchedProfile?.twoFAEnabled) {
+          setTempFirebaseUser(user);
+          setProfile(fetchedProfile);
+          setShow2FAVerify(true);
+          return;
+        }
+
+        setFirebaseUser(user);
         setProfile(prev => {
-          if (!prev) {
+          const profileToUse = fetchedProfile || prev;
+          if (!profileToUse) {
             const newProfile: UserProfile = {
               name: user.displayName || 'Gezgin',
               level: 'Başlangıç',
@@ -206,48 +338,28 @@ export default function App() {
             return newProfile;
           }
           // Update existing profile with email if missing
-          if (!prev.email && user.email) {
-            const updated = { ...prev, email: user.email };
+          if (!profileToUse.email && user.email) {
+            const updated = { ...profileToUse, email: user.email };
             localStorage.setItem('tekno_nova_profile', JSON.stringify(updated));
             return updated;
           }
-          return prev;
+          localStorage.setItem('tekno_nova_profile', JSON.stringify(profileToUse));
+          return profileToUse;
         });
         setShowOnboarding(false);
+      } else {
+        setFirebaseUser(null);
+        setTempFirebaseUser(null);
+        setShow2FAVerify(false);
       }
     });
     return () => unsubscribe();
   }, []);
 
-  // Initialize reCAPTCHA
-  useEffect(() => {
-    if (!auth || authView !== 'phone' || phoneStep !== 'number') return;
-    
-    try {
-      const verifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
-        'size': 'normal',
-        'callback': () => {
-          console.log("reCAPTCHA verified");
-        },
-        'expired-callback': () => {
-          setAuthError("reCAPTCHA süresi doldu. Lütfen tekrar deneyin.");
-        }
-      });
-      (window as any).recaptchaVerifier = verifier;
-    } catch (err) {
-      console.error("reCAPTCHA Init Error:", err);
-    }
-
-    return () => {
-      if ((window as any).recaptchaVerifier) {
-        (window as any).recaptchaVerifier.clear();
-      }
-    };
-  }, [auth, authView, phoneStep]);
-
   const handleEmailAuth = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!auth) return;
+    
     setAuthError('');
     setIsLoading(true);
     try {
@@ -256,6 +368,9 @@ export default function App() {
       } else {
         await signInWithEmailAndPassword(auth, email, password);
       }
+    } catch (error: any) {
+      console.error("Auth Error:", error);
+      setAuthError(error.message || "Giriş işlemi başarısız oldu.");
     } finally {
       setIsLoading(false);
     }
@@ -267,6 +382,7 @@ export default function App() {
       setAuthError("Lütfen e-posta adresinizi girin.");
       return;
     }
+    
     setAuthError('');
     setIsLoading(true);
     try {
@@ -275,45 +391,6 @@ export default function App() {
     } catch (error: any) {
       console.error("Reset Password Error:", error);
       setAuthError("Şifre sıfırlama e-postası gönderilemedi. E-posta adresinizi kontrol edin.");
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handlePhoneAuth = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!auth) return;
-    setAuthError('');
-    setIsLoading(true);
-    
-    try {
-      const appVerifier = (window as any).recaptchaVerifier;
-      const result = await signInWithPhoneNumber(auth, phoneNumber, appVerifier);
-      setConfirmationResult(result);
-      setPhoneStep('code');
-    } catch (error: any) {
-      console.error("Phone Auth Error:", error);
-      setAuthError(error.message);
-      if ((window as any).recaptchaVerifier) {
-        (window as any).recaptchaVerifier.render().then((widgetId: any) => {
-          (window as any).grecaptcha.reset(widgetId);
-        });
-      }
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleVerifyCode = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!confirmationResult) return;
-    setAuthError('');
-    setIsLoading(true);
-    try {
-      await confirmationResult.confirm(verificationCode);
-    } catch (error: any) {
-      console.error("Verification Code Error:", error);
-      setAuthError("Geçersiz doğrulama kodu.");
     } finally {
       setIsLoading(false);
     }
@@ -783,7 +860,6 @@ export default function App() {
                     onClick={() => {
                       setAuthView('onboarding');
                       setAuthError('');
-                      setPhoneStep('number');
                     }}
                     className="absolute -top-2 -left-2 p-2 text-zinc-500 hover:text-white transition-colors"
                   >
@@ -797,13 +873,11 @@ export default function App() {
                   </div>
                   <h2 className="text-3xl font-display font-bold bg-clip-text text-transparent bg-gradient-to-b from-white to-zinc-400">
                     {authView === 'onboarding' ? 'DeneyapAI\'ya Hoş Geldin' : 
-                     authView === 'email' ? (isRegistering ? 'Hesap Oluştur' : 'Giriş Yap') : 
-                     'Telefonla Doğrula'}
+                     (isRegistering ? 'Hesap Oluştur' : 'Giriş Yap')}
                   </h2>
                   <p className="text-zinc-500 text-sm mt-2">
                     {authView === 'onboarding' ? 'Geleceğin teknolojisini güvenle inşa etmeye başla.' : 
-                     authView === 'email' ? 'E-posta adresinle güvenli oturum aç.' : 
-                     'Telefonuna gelecek kod ile hızlıca bağlan.'}
+                     'E-posta adresinle güvenli oturum aç.'}
                   </p>
                 </div>
 
@@ -831,22 +905,13 @@ export default function App() {
                           Google ile Devam Et
                         </button>
 
-                        <div className="grid grid-cols-2 gap-3">
-                          <button 
-                            onClick={() => setAuthView('email')}
-                            className="bg-white/5 border border-white/10 text-white font-bold py-4 rounded-2xl transition-all flex flex-col items-center justify-center gap-2 hover:bg-white/10 active:scale-[0.98]"
-                          >
-                            <Mail className="w-5 h-5 text-emerald-400" />
-                            <span className="text-xs">E-posta</span>
-                          </button>
-                          <button 
-                            onClick={() => setAuthView('phone')}
-                            className="bg-white/5 border border-white/10 text-white font-bold py-4 rounded-2xl transition-all flex flex-col items-center justify-center gap-2 hover:bg-white/10 active:scale-[0.98]"
-                          >
-                            <Smartphone className="w-5 h-5 text-blue-400" />
-                            <span className="text-xs">Telefon</span>
-                          </button>
-                        </div>
+                        <button 
+                          onClick={() => setAuthView('email')}
+                          className="w-full bg-white/5 border border-white/10 text-white font-bold py-4 rounded-2xl transition-all flex items-center justify-center gap-3 hover:bg-white/10 active:scale-[0.98]"
+                        >
+                          <Mail className="w-5 h-5 text-emerald-400" />
+                          E-posta ile Devam Et
+                        </button>
                       </>
                     ) : (
                       <div className="p-6 bg-amber-500/5 border border-amber-500/10 rounded-2xl text-center">
@@ -868,7 +933,7 @@ export default function App() {
                           <span className="text-[10px]">AES-256</span>
                         </div>
                         <div className="flex items-center gap-1.5 text-zinc-500">
-                          <Smartphone className="w-3 h-3" />
+                          <Mail className="w-3 h-3" />
                           <span className="text-[10px]">2FA</span>
                         </div>
                       </div>
@@ -917,6 +982,7 @@ export default function App() {
                             />
                           </div>
                         </div>
+                        
                         <button 
                           type="submit"
                           disabled={isLoading}
@@ -1002,68 +1068,7 @@ export default function App() {
                   </div>
                 )}
 
-                {authView === 'phone' && (
-                  <div className="space-y-4">
-                    {phoneStep === 'number' ? (
-                      <form onSubmit={handlePhoneAuth} className="space-y-4">
-                        <div className="space-y-2">
-                          <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest ml-1">Telefon Numarası</label>
-                          <div className="relative group">
-                            <Phone className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-zinc-500 group-focus-within:text-blue-500 transition-colors" />
-                            <input 
-                              type="tel"
-                              required
-                              value={phoneNumber}
-                              onChange={(e) => setPhoneNumber(e.target.value)}
-                              placeholder="+90 5XX XXX XX XX"
-                              className="w-full bg-white/5 border border-white/10 rounded-2xl pl-12 pr-4 py-4 focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all"
-                            />
-                          </div>
-                          <p className="text-[10px] text-zinc-500 ml-1 italic">* Numaranızı ülke koduyla birlikte giriniz (Örn: +905...)</p>
-                        </div>
-
-                        <div id="recaptcha-container" className="flex justify-center my-4 scale-90 origin-center"></div>
-
-                        <button 
-                          type="submit"
-                          disabled={isLoading}
-                          className="w-full bg-blue-500 hover:bg-blue-400 text-white font-bold py-4 rounded-2xl transition-all shadow-lg shadow-blue-500/20 flex items-center justify-center gap-2 disabled:opacity-50"
-                        >
-                          {isLoading ? <RefreshCw className="w-5 h-5 animate-spin" /> : 'Doğrulama Kodu Gönder'}
-                        </button>
-                      </form>
-                    ) : (
-                      <form onSubmit={handleVerifyCode} className="space-y-4">
-                        <div className="space-y-2">
-                          <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest ml-1">Doğrulama Kodu</label>
-                          <div className="relative group">
-                            <Key className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-zinc-500 group-focus-within:text-blue-500 transition-colors" />
-                            <input 
-                              type="text"
-                              required
-                              value={verificationCode}
-                              onChange={(e) => setVerificationCode(e.target.value)}
-                              placeholder="6 Haneli Kod"
-                              maxLength={6}
-                              className="w-full bg-white/5 border border-white/10 rounded-2xl pl-12 pr-4 py-4 focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all text-center tracking-[0.5em] font-mono text-lg"
-                            />
-                          </div>
-                          <p className="text-[10px] text-zinc-500 text-center mt-2">
-                            Kod gelmedi mi? <button type="button" onClick={() => setPhoneStep('number')} className="text-blue-400 hover:underline">Tekrar dene</button>
-                          </p>
-                        </div>
-
-                        <button 
-                          type="submit"
-                          disabled={isLoading}
-                          className="w-full bg-emerald-500 hover:bg-emerald-400 text-white font-bold py-4 rounded-2xl transition-all shadow-lg shadow-emerald-500/20 flex items-center justify-center gap-2 disabled:opacity-50"
-                        >
-                          {isLoading ? <RefreshCw className="w-5 h-5 animate-spin" /> : 'Kodu Doğrula'}
-                        </button>
-                      </form>
-                    )}
-                  </div>
-                )}
+                {/* Phone view removed */}
               </div>
             </motion.div>
           </motion.div>
@@ -2103,16 +2108,26 @@ export default function App() {
                       <div className="flex items-center justify-between p-4 bg-zinc-800/30 rounded-2xl border border-zinc-700/30">
                         <div className="flex items-center gap-3">
                           <div className="w-10 h-10 bg-blue-500/10 rounded-xl flex items-center justify-center">
-                            <Smartphone className="w-5 h-5 text-blue-400" />
+                            <Mail className="w-5 h-5 text-blue-400" />
                           </div>
                           <div>
-                            <div className="text-sm font-bold">2FA (İki Faktörlü Doğrulama)</div>
+                            <div className="text-sm font-bold">Authenticator (TOTP)</div>
                             <div className="text-[10px] text-zinc-500 uppercase tracking-wider">
-                              {firebaseUser?.phoneNumber ? 'Telefon ile Aktif' : 'E-posta ile Aktif'}
+                              {profile?.twoFAEnabled ? 'Aktif' : 'Devre Dışı'}
                             </div>
                           </div>
                         </div>
-                        <span className="px-3 py-1 bg-blue-500/10 text-blue-400 text-[10px] font-bold rounded-full border border-blue-500/20">AÇIK</span>
+                        <button 
+                          onClick={handleEnable2FA}
+                          className={cn(
+                            "px-3 py-1 text-[10px] font-bold rounded-full border transition-all",
+                            profile?.twoFAEnabled 
+                              ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" 
+                              : "bg-blue-500/10 text-blue-400 border-blue-500/20 hover:bg-blue-500/20"
+                          )}
+                        >
+                          {profile?.twoFAEnabled ? 'AKTİF' : '2FA AKTİF ET'}
+                        </button>
                       </div>
                     </div>
                   </div>
@@ -2354,6 +2369,147 @@ export default function App() {
           <span className="text-[10px] font-bold uppercase">Profil</span>
         </button>
       </div>
+
+      {/* 2FA Verification Modal (Login) */}
+      <AnimatePresence>
+        {show2FAVerify && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="absolute inset-0 bg-black/80 backdrop-blur-sm"
+            />
+            <motion.div 
+              initial={{ scale: 0.9, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.9, opacity: 0, y: 20 }}
+              className="relative bg-zinc-900 border border-zinc-800 rounded-[2.5rem] p-8 md:p-10 max-w-md w-full shadow-2xl overflow-hidden"
+            >
+              <div className="text-center space-y-6">
+                <div className="w-16 h-16 bg-blue-500/10 rounded-2xl flex items-center justify-center mx-auto">
+                  <Lock className="w-8 h-8 text-blue-400" />
+                </div>
+                
+                <div>
+                  <h3 className="text-2xl font-display font-bold text-white mb-2">2FA Doğrulaması</h3>
+                  <p className="text-sm text-zinc-400">
+                    Hesabınız iki faktörlü doğrulama ile korunmaktadır. Lütfen Authenticator uygulamanızdaki kodu girin.
+                  </p>
+                </div>
+
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest block text-left ml-1">Doğrulama Kodu</label>
+                    <input 
+                      type="text"
+                      maxLength={6}
+                      value={twoFAVerifyCode}
+                      onChange={(e) => setTwoFAVerifyCode(e.target.value.replace(/\D/g, ''))}
+                      placeholder="000000"
+                      className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-center text-2xl font-mono tracking-[0.5em] focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all"
+                    />
+                  </div>
+
+                  {twoFAError && (
+                    <div className="flex items-center gap-2 p-3 bg-red-500/10 border border-red-500/20 rounded-xl text-red-400 text-[10px] font-bold uppercase">
+                      <AlertCircle className="w-4 h-4 shrink-0" />
+                      <span>{twoFAError}</span>
+                    </div>
+                  )}
+
+                  <button 
+                    onClick={handle2FAVerify}
+                    className="w-full bg-blue-500 hover:bg-blue-400 text-white font-bold py-4 rounded-2xl transition-all shadow-lg shadow-blue-500/20"
+                  >
+                    Doğrula ve Giriş Yap
+                  </button>
+                  
+                  <button 
+                    onClick={() => signOut(auth!)}
+                    className="w-full text-zinc-500 hover:text-white text-xs font-medium transition-colors py-2"
+                  >
+                    Girişten vazgeç
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* 2FA Setup Modal */}
+      <AnimatePresence>
+        {show2FAModal && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShow2FAModal(false)}
+              className="absolute inset-0 bg-black/80 backdrop-blur-sm"
+            />
+            <motion.div 
+              initial={{ scale: 0.9, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.9, opacity: 0, y: 20 }}
+              className="relative bg-zinc-900 border border-zinc-800 rounded-[2.5rem] p-8 md:p-10 max-w-md w-full shadow-2xl overflow-hidden"
+            >
+              <button 
+                onClick={() => setShow2FAModal(false)}
+                className="absolute top-6 right-6 p-2 text-zinc-500 hover:text-white transition-colors"
+              >
+                <X className="w-6 h-6" />
+              </button>
+
+              <div className="text-center space-y-6">
+                <div className="w-16 h-16 bg-blue-500/10 rounded-2xl flex items-center justify-center mx-auto">
+                  <ShieldCheck className="w-8 h-8 text-blue-400" />
+                </div>
+                
+                <div>
+                  <h3 className="text-2xl font-display font-bold text-white mb-2">2FA Aktif Et</h3>
+                  <p className="text-sm text-zinc-400">
+                    Google Authenticator veya benzeri bir uygulama ile aşağıdaki QR kodu taratın.
+                  </p>
+                </div>
+
+                <div className="bg-white p-4 rounded-2xl inline-block mx-auto shadow-inner">
+                  <QRCodeSVG value={twoFAQRCode} size={180} />
+                </div>
+
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest block text-left ml-1">Doğrulama Kodu</label>
+                    <input 
+                      type="text"
+                      maxLength={6}
+                      value={twoFAVerifyCode}
+                      onChange={(e) => setTwoFAVerifyCode(e.target.value.replace(/\D/g, ''))}
+                      placeholder="000000"
+                      className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-center text-2xl font-mono tracking-[0.5em] focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all"
+                    />
+                  </div>
+
+                  {twoFAError && (
+                    <div className="flex items-center gap-2 p-3 bg-red-500/10 border border-red-500/20 rounded-xl text-red-400 text-[10px] font-bold uppercase">
+                      <AlertCircle className="w-4 h-4 shrink-0" />
+                      <span>{twoFAError}</span>
+                    </div>
+                  )}
+
+                  <button 
+                    onClick={verifyAndEnable2FA}
+                    className="w-full bg-blue-500 hover:bg-blue-400 text-white font-bold py-4 rounded-2xl transition-all shadow-lg shadow-blue-500/20"
+                  >
+                    Doğrula ve Aktif Et
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       {/* Privacy Modal */}
       <AnimatePresence>

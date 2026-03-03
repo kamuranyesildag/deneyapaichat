@@ -11,6 +11,7 @@ import {
   PhoneAuthProvider
 } from "firebase/auth";
 import { getAnalytics, Analytics } from "firebase/analytics";
+import { getFirestore, Firestore } from "firebase/firestore";
 
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
@@ -34,6 +35,7 @@ export const isFirebaseConfigured = !!(
 let app: FirebaseApp | undefined;
 let auth: Auth | undefined;
 let analytics: Analytics | undefined;
+let db: Firestore | undefined;
 
 if (isFirebaseConfigured) {
   // Check if authDomain is likely incorrect (should be firebaseapp.com, not vercel.app)
@@ -51,6 +53,7 @@ if (isFirebaseConfigured) {
     
     if (app) {
       auth = getAuth(app);
+      db = getFirestore(app);
       // Analytics is only supported in browser environments
       if (typeof window !== 'undefined') {
         analytics = getAnalytics(app);
@@ -67,7 +70,7 @@ if (isFirebaseConfigured) {
   }
 }
 
-export { auth, analytics };
+export { auth, analytics, db };
 export const googleProvider = new GoogleAuthProvider();
 googleProvider.setCustomParameters({
   prompt: 'select_account'

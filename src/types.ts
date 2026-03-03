@@ -18,6 +18,8 @@ export interface UserProfile {
   deviceId?: string;
   securityVerified?: boolean;
   email?: string;
+  twoFAEnabled?: boolean;
+  twoFASecret?: string;
   achievements?: string[];
   stats?: {
     projectsGenerated: number;
