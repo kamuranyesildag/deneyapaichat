@@ -1,5 +1,15 @@
 import { initializeApp, getApp, getApps, FirebaseApp } from "firebase/app";
-import { getAuth, GoogleAuthProvider, Auth } from "firebase/auth";
+import { 
+  getAuth, 
+  GoogleAuthProvider, 
+  Auth, 
+  RecaptchaVerifier,
+  signInWithPhoneNumber,
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  sendPasswordResetEmail,
+  PhoneAuthProvider
+} from "firebase/auth";
 import { getAnalytics, Analytics } from "firebase/analytics";
 
 const firebaseConfig = {
@@ -26,6 +36,11 @@ let auth: Auth | undefined;
 let analytics: Analytics | undefined;
 
 if (isFirebaseConfigured) {
+  // Check if authDomain is likely incorrect (should be firebaseapp.com, not vercel.app)
+  if (firebaseConfig.authDomain?.includes("vercel.app")) {
+    console.error("CRITICAL: VITE_FIREBASE_AUTH_DOMAIN is set to a Vercel URL. This will break Google Login. It must be your Firebase 'authDomain' (e.g., project-id.firebaseapp.com).");
+  }
+  
   try {
     // Only initialize if we have a valid-looking API key
     if (getApps().length === 0) {

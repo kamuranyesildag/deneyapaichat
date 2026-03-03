@@ -1,6 +1,17 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { auth, googleProvider, isFirebaseConfigured } from './services/firebase';
-import { signInWithPopup, signOut, onAuthStateChanged, User as FirebaseUser } from 'firebase/auth';
+import { 
+  signInWithPopup, 
+  signOut, 
+  onAuthStateChanged, 
+  User as FirebaseUser,
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  signInWithPhoneNumber,
+  RecaptchaVerifier,
+  ConfirmationResult,
+  sendPasswordResetEmail
+} from 'firebase/auth';
 import { 
   Cpu, 
   Bug, 
@@ -37,7 +48,15 @@ import {
   Check,
   Radio,
   Headphones,
-  Waves
+  Waves,
+  Mail,
+  Lock,
+  Phone,
+  Smartphone,
+  Shield,
+  Eye,
+  EyeOff,
+  RefreshCw
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import Markdown from 'react-markdown';
@@ -144,42 +163,175 @@ export default function App() {
   const [showQuickActions, setShowQuickActions] = useState(true);
   const [copiedIdx, setCopiedIdx] = useState<number | null>(null);
 
+  // New Auth States
+  const [authView, setAuthView] = useState<'onboarding' | 'email' | 'phone'>('onboarding');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [isRegistering, setIsRegistering] = useState(false);
+  const [phoneNumber, setPhoneNumber] = useState('');
+  const [verificationCode, setVerificationCode] = useState('');
+  const [confirmationResult, setConfirmationResult] = useState<ConfirmationResult | null>(null);
+  const [showPassword, setShowPassword] = useState(false);
+  const [authError, setAuthError] = useState('');
+  const [phoneStep, setPhoneStep] = useState<'number' | 'code'>('number');
+  const [showForgotPassword, setShowForgotPassword] = useState(false);
+  const [resetSent, setResetSent] = useState(false);
+
   // Firebase Auth Listener
   useEffect(() => {
     if (!auth) return;
+    
     const unsubscribe = onAuthStateChanged(auth, (user) => {
+      console.log("Auth State Changed:", user ? "User logged in" : "No user");
       setFirebaseUser(user);
-      if (user && !profile) {
-        // If logged in but no profile, create one
-        const newProfile: UserProfile = {
-          name: user.displayName || 'Gezgin',
-          level: 'Başlangıç',
-          totalQuestions: 0,
-          subscriptionTier: 'FREE',
-          isPremium: false,
-          deviceId: Math.random().toString(36).substring(7),
-          lastLogin: Date.now(),
-          securityVerified: true,
-          email: user.email || undefined
-        };
-        setProfile(newProfile);
-        localStorage.setItem('tekno_nova_profile', JSON.stringify(newProfile));
+      
+      if (user) {
+        // Sync profile with Firebase user if needed
+        setProfile(prev => {
+          if (!prev) {
+            const newProfile: UserProfile = {
+              name: user.displayName || 'Gezgin',
+              level: 'Başlangıç',
+              totalQuestions: 0,
+              subscriptionTier: 'FREE',
+              isPremium: false,
+              deviceId: Math.random().toString(36).substring(7),
+              lastLogin: Date.now(),
+              securityVerified: true,
+              email: user.email || undefined,
+              stats: { projectsGenerated: 0, bugsFixed: 0, codeOptimized: 0 },
+              achievements: []
+            };
+            localStorage.setItem('tekno_nova_profile', JSON.stringify(newProfile));
+            return newProfile;
+          }
+          // Update existing profile with email if missing
+          if (!prev.email && user.email) {
+            const updated = { ...prev, email: user.email };
+            localStorage.setItem('tekno_nova_profile', JSON.stringify(updated));
+            return updated;
+          }
+          return prev;
+        });
         setShowOnboarding(false);
       }
     });
     return () => unsubscribe();
-  }, [profile]);
+  }, []);
+
+  // Initialize reCAPTCHA
+  useEffect(() => {
+    if (!auth || authView !== 'phone' || phoneStep !== 'number') return;
+    
+    try {
+      const verifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
+        'size': 'normal',
+        'callback': () => {
+          console.log("reCAPTCHA verified");
+        },
+        'expired-callback': () => {
+          setAuthError("reCAPTCHA süresi doldu. Lütfen tekrar deneyin.");
+        }
+      });
+      (window as any).recaptchaVerifier = verifier;
+    } catch (err) {
+      console.error("reCAPTCHA Init Error:", err);
+    }
+
+    return () => {
+      if ((window as any).recaptchaVerifier) {
+        (window as any).recaptchaVerifier.clear();
+      }
+    };
+  }, [auth, authView, phoneStep]);
+
+  const handleEmailAuth = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!auth) return;
+    setAuthError('');
+    setIsLoading(true);
+    try {
+      if (isRegistering) {
+        await createUserWithEmailAndPassword(auth, email, password);
+      } else {
+        await signInWithEmailAndPassword(auth, email, password);
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleForgotPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!auth || !email) {
+      setAuthError("Lütfen e-posta adresinizi girin.");
+      return;
+    }
+    setAuthError('');
+    setIsLoading(true);
+    try {
+      await sendPasswordResetEmail(auth, email);
+      setResetSent(true);
+    } catch (error: any) {
+      console.error("Reset Password Error:", error);
+      setAuthError("Şifre sıfırlama e-postası gönderilemedi. E-posta adresinizi kontrol edin.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handlePhoneAuth = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!auth) return;
+    setAuthError('');
+    setIsLoading(true);
+    
+    try {
+      const appVerifier = (window as any).recaptchaVerifier;
+      const result = await signInWithPhoneNumber(auth, phoneNumber, appVerifier);
+      setConfirmationResult(result);
+      setPhoneStep('code');
+    } catch (error: any) {
+      console.error("Phone Auth Error:", error);
+      setAuthError(error.message);
+      if ((window as any).recaptchaVerifier) {
+        (window as any).recaptchaVerifier.render().then((widgetId: any) => {
+          (window as any).grecaptcha.reset(widgetId);
+        });
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleVerifyCode = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!confirmationResult) return;
+    setAuthError('');
+    setIsLoading(true);
+    try {
+      await confirmationResult.confirm(verificationCode);
+    } catch (error: any) {
+      console.error("Verification Code Error:", error);
+      setAuthError("Geçersiz doğrulama kodu.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const handleGoogleSignIn = async () => {
+    console.log("Starting Google Sign-In...");
     if (!isFirebaseConfigured || !auth) {
+      console.error("Firebase not configured or auth not initialized");
       alert("Google ile giriş şu anda devre dışı. Lütfen yönetici ile iletişime geçin.");
       return;
     }
     try {
       setIsLoading(true);
-      await signInWithPopup(auth, googleProvider);
+      const result = await signInWithPopup(auth, googleProvider);
+      console.log("Google Sign-In Success:", result.user.email);
     } catch (error: any) {
-      console.error("Google Sign-In Error:", error);
+      console.error("Google Sign-In Error Details:", error);
       let msg = "Giriş yapılırken bir hata oluştu.";
       if (error.code === 'auth/unauthorized-domain') {
         msg += "\n\nBu alan adı (domain) Firebase Console'da 'Yetkilendirilmiş Alan Adları' listesine eklenmemiş.";
@@ -607,85 +759,312 @@ export default function App() {
         )}
       </AnimatePresence>
 
-      {/* Onboarding Modal */}
+      {/* Onboarding / Auth Modal */}
       <AnimatePresence>
         {showOnboarding && (
           <motion.div 
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm"
+            className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/90 backdrop-blur-md"
           >
             <motion.div 
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              className="glass border border-white/10 rounded-3xl p-8 max-w-md w-full shadow-2xl"
+              initial={{ scale: 0.9, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              className="glass border border-white/10 rounded-[2.5rem] p-8 max-w-md w-full shadow-2xl relative overflow-hidden"
             >
-              <div className="flex items-center gap-3 mb-6">
-                <div className="w-12 h-12 bg-emerald-500 rounded-2xl flex items-center justify-center shadow-lg shadow-emerald-500/20 rotate-3">
-                  <Star className="text-white w-7 h-7" />
-                </div>
-                <div>
-                  <h2 className="text-2xl font-display font-bold">DeneyapAI'ya Katıl</h2>
-                  <p className="text-zinc-400 text-sm">Geleceğin teknolojisini birlikte inşa edelim.</p>
-                </div>
-              </div>
+              {/* Decorative background elements */}
+              <div className="absolute -top-24 -right-24 w-48 h-48 bg-emerald-500/10 blur-3xl rounded-full" />
+              <div className="absolute -bottom-24 -left-24 w-48 h-48 bg-blue-500/10 blur-3xl rounded-full" />
 
-              <form onSubmit={(e) => {
-                e.preventDefault();
-                const formData = new FormData(e.currentTarget);
-                handleOnboarding(
-                  formData.get('name') as string,
-                  formData.get('level') as UserProfile['level']
-                );
-              }} className="space-y-6">
-                <div>
-                  <label className="block text-xs font-bold uppercase tracking-widest text-zinc-500 mb-2">Adın Ne?</label>
-                  <input 
-                    name="name"
-                    required
-                    placeholder="Örn: Ahmet"
-                    className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-emerald-500 transition-all"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold uppercase tracking-widest text-zinc-500 mb-2">Teknoloji Seviyen Nedir?</label>
-                  <div className="grid grid-cols-3 gap-2">
-                    {['Başlangıç', 'Orta', 'İleri'].map((lvl) => (
-                      <label key={lvl} className="relative cursor-pointer group">
-                        <input type="radio" name="level" value={lvl} required className="peer sr-only" defaultChecked={lvl === 'Başlangıç'} />
-                        <div className="bg-white/5 border border-white/10 rounded-xl px-2 py-3 text-center text-sm font-semibold transition-all peer-checked:bg-emerald-500/20 peer-checked:border-emerald-500 peer-checked:text-emerald-400 group-hover:bg-white/10">
-                          {lvl}
-                        </div>
-                      </label>
-                    ))}
-                  </div>
-                </div>
-                <button type="submit" className="w-full bg-emerald-500 hover:bg-emerald-400 text-white font-bold py-4 rounded-xl transition-all shadow-lg shadow-emerald-500/20">
-                  Başlayalım!
-                </button>
-
-                <div className="relative py-2">
-                  <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-white/10"></div></div>
-                  <div className="relative flex justify-center text-[10px] uppercase font-bold tracking-widest"><span className="bg-zinc-900 px-2 text-zinc-600">Veya</span></div>
-                </div>
-
-                {isFirebaseConfigured ? (
+              <div className="relative">
+                {authView !== 'onboarding' && (
                   <button 
-                    type="button"
-                    onClick={handleGoogleSignIn}
-                    className="w-full bg-white text-zinc-900 font-bold py-4 rounded-xl transition-all flex items-center justify-center gap-3 hover:bg-zinc-100"
+                    onClick={() => {
+                      setAuthView('onboarding');
+                      setAuthError('');
+                      setPhoneStep('number');
+                    }}
+                    className="absolute -top-2 -left-2 p-2 text-zinc-500 hover:text-white transition-colors"
                   >
-                    <img src="https://www.google.com/favicon.ico" className="w-5 h-5" alt="Google" />
-                    Google ile Giriş Yap
+                    <ArrowLeft className="w-5 h-5" />
                   </button>
-                ) : (
-                  <div className="p-4 bg-amber-500/5 border border-amber-500/10 rounded-xl text-center">
-                    <p className="text-[10px] text-amber-500/60 font-bold uppercase tracking-widest mb-1">Bulut Senkronizasyonu Devre Dışı</p>
-                    <p className="text-[9px] text-zinc-500 leading-relaxed">Vercel panelinden Firebase API anahtarlarını ekleyerek Google ile girişi aktif edebilirsiniz.</p>
+                )}
+
+                <div className="flex flex-col items-center text-center mb-8">
+                  <div className="w-16 h-16 bg-gradient-to-br from-emerald-400 to-emerald-600 rounded-2xl flex items-center justify-center shadow-xl shadow-emerald-500/20 mb-4 rotate-3">
+                    <ShieldCheck className="text-white w-9 h-9" />
+                  </div>
+                  <h2 className="text-3xl font-display font-bold bg-clip-text text-transparent bg-gradient-to-b from-white to-zinc-400">
+                    {authView === 'onboarding' ? 'DeneyapAI\'ya Hoş Geldin' : 
+                     authView === 'email' ? (isRegistering ? 'Hesap Oluştur' : 'Giriş Yap') : 
+                     'Telefonla Doğrula'}
+                  </h2>
+                  <p className="text-zinc-500 text-sm mt-2">
+                    {authView === 'onboarding' ? 'Geleceğin teknolojisini güvenle inşa etmeye başla.' : 
+                     authView === 'email' ? 'E-posta adresinle güvenli oturum aç.' : 
+                     'Telefonuna gelecek kod ile hızlıca bağlan.'}
+                  </p>
+                </div>
+
+                {authError && (
+                  <motion.div 
+                    initial={{ opacity: 0, y: -10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="mb-6 p-4 bg-red-500/10 border border-red-500/20 rounded-2xl flex items-start gap-3"
+                  >
+                    <AlertCircle className="w-5 h-5 text-red-500 shrink-0 mt-0.5" />
+                    <p className="text-xs text-red-400 leading-relaxed font-medium">{authError}</p>
+                  </motion.div>
+                )}
+
+                {authView === 'onboarding' && (
+                  <div className="space-y-4">
+                    {isFirebaseConfigured ? (
+                      <>
+                        <button 
+                          onClick={handleGoogleSignIn}
+                          disabled={isLoading}
+                          className="w-full bg-white text-zinc-900 font-bold py-4 rounded-2xl transition-all flex items-center justify-center gap-3 hover:bg-zinc-100 active:scale-[0.98] disabled:opacity-50"
+                        >
+                          <img src="https://www.google.com/favicon.ico" className="w-5 h-5" alt="Google" />
+                          Google ile Devam Et
+                        </button>
+
+                        <div className="grid grid-cols-2 gap-3">
+                          <button 
+                            onClick={() => setAuthView('email')}
+                            className="bg-white/5 border border-white/10 text-white font-bold py-4 rounded-2xl transition-all flex flex-col items-center justify-center gap-2 hover:bg-white/10 active:scale-[0.98]"
+                          >
+                            <Mail className="w-5 h-5 text-emerald-400" />
+                            <span className="text-xs">E-posta</span>
+                          </button>
+                          <button 
+                            onClick={() => setAuthView('phone')}
+                            className="bg-white/5 border border-white/10 text-white font-bold py-4 rounded-2xl transition-all flex flex-col items-center justify-center gap-2 hover:bg-white/10 active:scale-[0.98]"
+                          >
+                            <Smartphone className="w-5 h-5 text-blue-400" />
+                            <span className="text-xs">Telefon</span>
+                          </button>
+                        </div>
+                      </>
+                    ) : (
+                      <div className="p-6 bg-amber-500/5 border border-amber-500/10 rounded-2xl text-center">
+                        <Shield className="w-8 h-8 text-amber-500/40 mx-auto mb-3" />
+                        <p className="text-xs text-amber-500 font-bold uppercase tracking-widest mb-2">Sistem Hazırlanıyor</p>
+                        <p className="text-xs text-zinc-500 leading-relaxed">Güvenli giriş sistemleri yapılandırılıyor. Lütfen biraz bekleyin veya yönetici ile iletişime geçin.</p>
+                      </div>
+                    )}
+
+                    <div className="pt-4 text-center">
+                      <p className="text-[10px] text-zinc-600 uppercase tracking-[0.2em] font-bold">Güvenlik Standartları</p>
+                      <div className="flex justify-center gap-4 mt-3">
+                        <div className="flex items-center gap-1.5 text-zinc-500">
+                          <ShieldCheck className="w-3 h-3" />
+                          <span className="text-[10px]">SSL</span>
+                        </div>
+                        <div className="flex items-center gap-1.5 text-zinc-500">
+                          <Lock className="w-3 h-3" />
+                          <span className="text-[10px]">AES-256</span>
+                        </div>
+                        <div className="flex items-center gap-1.5 text-zinc-500">
+                          <Smartphone className="w-3 h-3" />
+                          <span className="text-[10px]">2FA</span>
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 )}
-              </form>
+
+                {authView === 'email' && (
+                  <div className="space-y-4">
+                    {resetSent ? (
+                      <motion.div 
+                        initial={{ opacity: 0, scale: 0.9 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        className="text-center p-6 bg-emerald-500/10 border border-emerald-500/20 rounded-3xl"
+                      >
+                        <div className="w-12 h-12 bg-emerald-500 rounded-full flex items-center justify-center mx-auto mb-4">
+                          <Check className="text-white w-6 h-6" />
+                        </div>
+                        <h3 className="text-lg font-bold text-white mb-2">E-posta Gönderildi</h3>
+                        <p className="text-xs text-zinc-400 leading-relaxed mb-6">
+                          Şifre sıfırlama bağlantısı <b>{email}</b> adresine gönderildi. Lütfen gelen kutunuzu kontrol edin.
+                        </p>
+                        <button 
+                          onClick={() => {
+                            setResetSent(false);
+                            setShowForgotPassword(false);
+                          }}
+                          className="w-full bg-emerald-500 hover:bg-emerald-400 text-white font-bold py-3 rounded-xl transition-all"
+                        >
+                          Giriş Ekranına Dön
+                        </button>
+                      </motion.div>
+                    ) : showForgotPassword ? (
+                      <form onSubmit={handleForgotPassword} className="space-y-4">
+                        <div className="space-y-2">
+                          <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest ml-1">E-posta Adresi</label>
+                          <div className="relative group">
+                            <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-zinc-500 group-focus-within:text-emerald-500 transition-colors" />
+                            <input 
+                              type="email"
+                              required
+                              value={email}
+                              onChange={(e) => setEmail(e.target.value)}
+                              placeholder="ornek@mail.com"
+                              className="w-full bg-white/5 border border-white/10 rounded-2xl pl-12 pr-4 py-4 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all"
+                            />
+                          </div>
+                        </div>
+                        <button 
+                          type="submit"
+                          disabled={isLoading}
+                          className="w-full bg-emerald-500 hover:bg-emerald-400 text-white font-bold py-4 rounded-2xl transition-all shadow-lg shadow-emerald-500/20 flex items-center justify-center gap-2 disabled:opacity-50"
+                        >
+                          {isLoading ? <RefreshCw className="w-5 h-5 animate-spin" /> : 'Sıfırlama Bağlantısı Gönder'}
+                        </button>
+                        <button 
+                          type="button"
+                          onClick={() => setShowForgotPassword(false)}
+                          className="w-full text-zinc-500 hover:text-white text-xs font-medium transition-colors py-2"
+                        >
+                          Giriş ekranına geri dön
+                        </button>
+                      </form>
+                    ) : (
+                      <form onSubmit={handleEmailAuth} className="space-y-4">
+                        <div className="space-y-2">
+                          <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest ml-1">E-posta Adresi</label>
+                          <div className="relative group">
+                            <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-zinc-500 group-focus-within:text-emerald-500 transition-colors" />
+                            <input 
+                              type="email"
+                              required
+                              value={email}
+                              onChange={(e) => setEmail(e.target.value)}
+                              placeholder="ornek@mail.com"
+                              className="w-full bg-white/5 border border-white/10 rounded-2xl pl-12 pr-4 py-4 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all"
+                            />
+                          </div>
+                        </div>
+
+                        <div className="space-y-2">
+                          <div className="flex justify-between items-center ml-1">
+                            <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Şifre</label>
+                            {!isRegistering && (
+                              <button 
+                                type="button"
+                                onClick={() => setShowForgotPassword(true)}
+                                className="text-[10px] text-emerald-500 hover:text-emerald-400 font-bold uppercase tracking-widest"
+                              >
+                                Şifremi Unuttum
+                              </button>
+                            )}
+                          </div>
+                          <div className="relative group">
+                            <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-zinc-500 group-focus-within:text-emerald-500 transition-colors" />
+                            <input 
+                              type={showPassword ? "text" : "password"}
+                              required
+                              value={password}
+                              onChange={(e) => setPassword(e.target.value)}
+                              placeholder="••••••••"
+                              className="w-full bg-white/5 border border-white/10 rounded-2xl pl-12 pr-12 py-4 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all"
+                            />
+                            <button 
+                              type="button"
+                              onClick={() => setShowPassword(!showPassword)}
+                              className="absolute right-4 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-white transition-colors"
+                            >
+                              {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                            </button>
+                          </div>
+                        </div>
+
+                        <button 
+                          type="submit"
+                          disabled={isLoading}
+                          className="w-full bg-emerald-500 hover:bg-emerald-400 text-white font-bold py-4 rounded-2xl transition-all shadow-lg shadow-emerald-500/20 flex items-center justify-center gap-2 disabled:opacity-50"
+                        >
+                          {isLoading ? <RefreshCw className="w-5 h-5 animate-spin" /> : (isRegistering ? 'Hesap Oluştur' : 'Giriş Yap')}
+                        </button>
+
+                        <button 
+                          type="button"
+                          onClick={() => setIsRegistering(!isRegistering)}
+                          className="w-full text-zinc-500 hover:text-white text-xs font-medium transition-colors py-2"
+                        >
+                          {isRegistering ? 'Zaten hesabın var mı? Giriş yap' : 'Hesabın yok mu? Yeni hesap oluştur'}
+                        </button>
+                      </form>
+                    )}
+                  </div>
+                )}
+
+                {authView === 'phone' && (
+                  <div className="space-y-4">
+                    {phoneStep === 'number' ? (
+                      <form onSubmit={handlePhoneAuth} className="space-y-4">
+                        <div className="space-y-2">
+                          <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest ml-1">Telefon Numarası</label>
+                          <div className="relative group">
+                            <Phone className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-zinc-500 group-focus-within:text-blue-500 transition-colors" />
+                            <input 
+                              type="tel"
+                              required
+                              value={phoneNumber}
+                              onChange={(e) => setPhoneNumber(e.target.value)}
+                              placeholder="+90 5XX XXX XX XX"
+                              className="w-full bg-white/5 border border-white/10 rounded-2xl pl-12 pr-4 py-4 focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all"
+                            />
+                          </div>
+                          <p className="text-[10px] text-zinc-500 ml-1 italic">* Numaranızı ülke koduyla birlikte giriniz (Örn: +905...)</p>
+                        </div>
+
+                        <div id="recaptcha-container" className="flex justify-center my-4 scale-90 origin-center"></div>
+
+                        <button 
+                          type="submit"
+                          disabled={isLoading}
+                          className="w-full bg-blue-500 hover:bg-blue-400 text-white font-bold py-4 rounded-2xl transition-all shadow-lg shadow-blue-500/20 flex items-center justify-center gap-2 disabled:opacity-50"
+                        >
+                          {isLoading ? <RefreshCw className="w-5 h-5 animate-spin" /> : 'Doğrulama Kodu Gönder'}
+                        </button>
+                      </form>
+                    ) : (
+                      <form onSubmit={handleVerifyCode} className="space-y-4">
+                        <div className="space-y-2">
+                          <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest ml-1">Doğrulama Kodu</label>
+                          <div className="relative group">
+                            <Key className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-zinc-500 group-focus-within:text-blue-500 transition-colors" />
+                            <input 
+                              type="text"
+                              required
+                              value={verificationCode}
+                              onChange={(e) => setVerificationCode(e.target.value)}
+                              placeholder="6 Haneli Kod"
+                              maxLength={6}
+                              className="w-full bg-white/5 border border-white/10 rounded-2xl pl-12 pr-4 py-4 focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all text-center tracking-[0.5em] font-mono text-lg"
+                            />
+                          </div>
+                          <p className="text-[10px] text-zinc-500 text-center mt-2">
+                            Kod gelmedi mi? <button type="button" onClick={() => setPhoneStep('number')} className="text-blue-400 hover:underline">Tekrar dene</button>
+                          </p>
+                        </div>
+
+                        <button 
+                          type="submit"
+                          disabled={isLoading}
+                          className="w-full bg-emerald-500 hover:bg-emerald-400 text-white font-bold py-4 rounded-2xl transition-all shadow-lg shadow-emerald-500/20 flex items-center justify-center gap-2 disabled:opacity-50"
+                        >
+                          {isLoading ? <RefreshCw className="w-5 h-5 animate-spin" /> : 'Kodu Doğrula'}
+                        </button>
+                      </form>
+                    )}
+                  </div>
+                )}
+              </div>
             </motion.div>
           </motion.div>
         )}
@@ -1701,6 +2080,42 @@ export default function App() {
                       </div>
                     </div>
                   )}
+
+                  <div className="bg-zinc-900 border border-zinc-800 rounded-3xl p-8">
+                    <h4 className="text-lg font-bold mb-6 flex items-center gap-2">
+                      <Shield className="w-5 h-5 text-blue-400" />
+                      Güvenlik Durumu
+                    </h4>
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between p-4 bg-zinc-800/30 rounded-2xl border border-zinc-700/30">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 bg-emerald-500/10 rounded-xl flex items-center justify-center">
+                            <ShieldCheck className="w-5 h-5 text-emerald-400" />
+                          </div>
+                          <div>
+                            <div className="text-sm font-bold">Hesap Doğrulama</div>
+                            <div className="text-[10px] text-zinc-500 uppercase tracking-wider">Aktif</div>
+                          </div>
+                        </div>
+                        <span className="px-3 py-1 bg-emerald-500/10 text-emerald-400 text-[10px] font-bold rounded-full border border-emerald-500/20">GÜVENLİ</span>
+                      </div>
+                      
+                      <div className="flex items-center justify-between p-4 bg-zinc-800/30 rounded-2xl border border-zinc-700/30">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 bg-blue-500/10 rounded-xl flex items-center justify-center">
+                            <Smartphone className="w-5 h-5 text-blue-400" />
+                          </div>
+                          <div>
+                            <div className="text-sm font-bold">2FA (İki Faktörlü Doğrulama)</div>
+                            <div className="text-[10px] text-zinc-500 uppercase tracking-wider">
+                              {firebaseUser?.phoneNumber ? 'Telefon ile Aktif' : 'E-posta ile Aktif'}
+                            </div>
+                          </div>
+                        </div>
+                        <span className="px-3 py-1 bg-blue-500/10 text-blue-400 text-[10px] font-bold rounded-full border border-blue-500/20">AÇIK</span>
+                      </div>
+                    </div>
+                  </div>
 
                   <div className="bg-zinc-900 border border-zinc-800 rounded-3xl p-8">
                     <h4 className="text-lg font-bold mb-6 flex items-center gap-2">
