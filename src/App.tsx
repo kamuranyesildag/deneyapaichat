@@ -2499,14 +2499,14 @@ export default function App() {
             </div>
           </div>
         )}
-        {/* Live Voice Overlay */}
+      {/* Live Voice Overlay */}
       <AnimatePresence>
         {mode === 'LIVE_VOICE' && activeTab === 'chat' && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[100]"
+            className="fixed inset-0 z-[200] bg-zinc-950"
           >
             <LiveVoiceView 
               isPremium={profile?.isPremium || profile?.subscriptionTier === 'PRO'} 

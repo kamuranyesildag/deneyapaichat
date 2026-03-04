@@ -65,6 +65,10 @@ export default function LiveVoiceView({ onClose, isPremium }: LiveVoiceViewProps
 
       // Initialize Audio Context
       const AudioContextClass = (window.AudioContext || (window as any).webkitAudioContext);
+      if (!AudioContextClass) {
+        throw new Error("Tarayıcınız ses işleme özelliğini desteklemiyor.");
+      }
+      
       audioContextRef.current = new AudioContextClass({ sampleRate: 16000 });
       
       console.log("AudioContext initialized with sampleRate:", audioContextRef.current.sampleRate);
@@ -93,7 +97,11 @@ export default function LiveVoiceView({ onClose, isPremium }: LiveVoiceViewProps
 
       const ai = new GoogleGenAI({ apiKey });
       
-      sessionRef.current = await ai.live.connect({
+      if (!ai.live || !ai.live.connect) {
+        throw new Error("Canlı Sohbet API'si şu anda yüklenemedi. Lütfen sayfayı yenileyin.");
+      }
+
+      const sessionPromise = ai.live.connect({
         model: "gemini-2.5-flash-native-audio-preview-09-2025",
         config: {
           responseModalities: [Modality.AUDIO],
@@ -119,20 +127,22 @@ export default function LiveVoiceView({ onClose, isPremium }: LiveVoiceViewProps
                   pcmData[i] = Math.max(-1, Math.min(1, inputData[i])) * 0x7FFF;
                 }
                 
-                if (sessionRef.current) {
-                  // Efficient base64 conversion for PCM data
-                  const uint8Array = new Uint8Array(pcmData.buffer);
-                  let binary = '';
-                  const len = uint8Array.byteLength;
-                  for (let i = 0; i < len; i++) {
-                    binary += String.fromCharCode(uint8Array[i]);
-                  }
-                  const base64Data = btoa(binary);
+                sessionPromise.then((session) => {
+                  if (session) {
+                    // Efficient base64 conversion for PCM data
+                    const uint8Array = new Uint8Array(pcmData.buffer);
+                    let binary = '';
+                    const len = uint8Array.byteLength;
+                    for (let i = 0; i < len; i++) {
+                      binary += String.fromCharCode(uint8Array[i]);
+                    }
+                    const base64Data = btoa(binary);
 
-                  sessionRef.current.sendRealtimeInput({
-                    media: { data: base64Data, mimeType: 'audio/pcm;rate=16000' }
-                  });
-                }
+                    session.sendRealtimeInput({
+                      media: { data: base64Data, mimeType: 'audio/pcm;rate=16000' }
+                    });
+                  }
+                });
               };
               source.connect(processorRef.current);
             }
@@ -207,6 +217,8 @@ export default function LiveVoiceView({ onClose, isPremium }: LiveVoiceViewProps
           }
         }
       });
+
+      sessionRef.current = await sessionPromise;
 
     } catch (err: any) {
       console.error("Failed to start live session:", err);
@@ -286,6 +298,13 @@ export default function LiveVoiceView({ onClose, isPremium }: LiveVoiceViewProps
 
   return (
     <div className="fixed inset-0 z-[100] bg-zinc-950 flex flex-col items-center justify-center p-4 md:p-8 overflow-hidden">
+      {/* Background Gradient Mesh */}
+      <div className="absolute inset-0 z-0 opacity-30">
+        <div className="absolute top-0 left-0 w-full h-full bg-[radial-gradient(circle_at_50%_50%,rgba(239,68,68,0.1),transparent_50%)]" />
+        <div className="absolute top-0 left-0 w-full h-full bg-[radial-gradient(circle_at_20%_20%,rgba(59,130,246,0.05),transparent_30%)]" />
+        <div className="absolute top-0 left-0 w-full h-full bg-[radial-gradient(circle_at_80%_80%,rgba(16,185,129,0.05),transparent_30%)]" />
+      </div>
+
       {/* Close Button */}
       <button 
         onClick={onClose}
