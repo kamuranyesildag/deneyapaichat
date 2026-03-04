@@ -52,7 +52,8 @@ import {
   Shield,
   Eye,
   EyeOff,
-  RefreshCw
+  RefreshCw,
+  Image as ImageIcon
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import Markdown from 'react-markdown';
@@ -81,6 +82,20 @@ interface ChangelogItem {
 }
 
 const CHANGELOG: ChangelogItem[] = [
+  {
+    version: '2.5.0',
+    date: '5 Mart 2026',
+    title: 'Büyük Güncelleme: AI Görsel Üretici ve Güvenlik',
+    type: 'major',
+    changes: [
+      'AI Görsel Üretici (Gemini 2.5 Flash Image) ile teknolojik tasarımlar üretme.',
+      'Google ile giriş yaparken yaşanan "Siyah Ekran" hatası giderildi.',
+      '2FA (İki Faktörlü Doğrulama) sistemi tamamen stabilize edildi.',
+      'Yeni "Splash Screen" (Açılış Ekranı) ile daha hızlı ve güvenli yükleme.',
+      'Günlük Teknoloji İpucu özelliği eklendi.',
+      'Sidebar kategorileri ve modern ikon seti güncellendi.'
+    ]
+  },
   {
     version: '2.2.0',
     date: '2 Mart 2026',
@@ -133,6 +148,16 @@ const CHANGELOG: ChangelogItem[] = [
   }
 ];
 
+const DAILY_TIPS = [
+  "Deneyap Kart'ın dahili Wi-Fi ve Bluetooth özelliği ile IoT projeleri geliştirebilirsin.",
+  "HC-SR04 mesafe sensörü ile engel tanımayan robotlar yapabilirsin.",
+  "TEKNOFEST raporlarında teknik detaylara ve özgünlüğe önem vermelisin.",
+  "Bitlis'in soğuk kış günlerinde akıllı ev sistemleri ile ısınma kontrolü yapabilirsin.",
+  "LDR sensörü kullanarak karanlıkta yanan akıllı sokak lambaları tasarlayabilirsin.",
+  "Kod yazarken yorum satırı eklemek, projeni başkalarının anlamasını kolaylaştırır.",
+  "DeneyapAI ile kodundaki hataları saniyeler içinde bulabilirsin!"
+];
+
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
@@ -149,6 +174,8 @@ export default function App() {
     }
   ]);
   const [isLoading, setIsLoading] = useState(false);
+  const [isAuthLoading, setIsAuthLoading] = useState(true);
+  const [showDailyTip, setShowDailyTip] = useState(true);
   const [cooldown, setCooldown] = useState(0);
   const [usageCount, setUsageCount] = useState(0);
   const [profile, setProfile] = useState<UserProfile | null>(null);
@@ -301,67 +328,83 @@ export default function App() {
 
   // Firebase Auth Listener
   useEffect(() => {
-    if (!auth) return;
+    if (!auth) {
+      setIsAuthLoading(false);
+      return;
+    }
     
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       console.log("Auth State Changed:", user ? "User logged in" : "No user");
       
-      if (user) {
-        // Fetch profile from Firestore
-        let fetchedProfile: UserProfile | null = null;
-        if (db) {
-          try {
-            const userDoc = await getDoc(doc(db, 'users', user.uid));
-            if (userDoc.exists()) {
-              fetchedProfile = userDoc.data() as UserProfile;
+      try {
+        if (user) {
+          // Fetch profile from Firestore
+          let fetchedProfile: UserProfile | null = null;
+          if (db) {
+            try {
+              const userDoc = await getDoc(doc(db, 'users', user.uid));
+              if (userDoc.exists()) {
+                fetchedProfile = userDoc.data() as UserProfile;
+              }
+            } catch (e) {
+              console.error("Error fetching profile from Firestore:", e);
             }
-          } catch (e) {
-            console.error("Error fetching profile from Firestore:", e);
+          }
+
+          // If 2FA is enabled, we need to verify before setting firebaseUser
+          if (fetchedProfile?.twoFAEnabled) {
+            setTempFirebaseUser(user);
+            setProfile(fetchedProfile);
+            setShow2FAVerify(true);
+            setIsAuthLoading(false);
+            return;
+          }
+
+          setFirebaseUser(user);
+          setProfile(prev => {
+            const profileToUse = fetchedProfile || prev;
+            if (!profileToUse) {
+              const newProfile: UserProfile = {
+                name: user.displayName || 'Gezgin',
+                level: 'Başlangıç',
+                totalQuestions: 0,
+                subscriptionTier: 'FREE',
+                isPremium: false,
+                deviceId: Math.random().toString(36).substring(7),
+                lastLogin: Date.now(),
+                securityVerified: true,
+                email: user.email || undefined,
+                stats: { projectsGenerated: 0, bugsFixed: 0, codeOptimized: 0 },
+                achievements: []
+              };
+              localStorage.setItem('tekno_nova_profile', JSON.stringify(newProfile));
+              return newProfile;
+            }
+            // Update existing profile with email if missing
+            if (!profileToUse.email && user.email) {
+              const updated = { ...profileToUse, email: user.email };
+              localStorage.setItem('tekno_nova_profile', JSON.stringify(updated));
+              return updated;
+            }
+            localStorage.setItem('tekno_nova_profile', JSON.stringify(profileToUse));
+            return profileToUse;
+          });
+          setShowOnboarding(false);
+        } else {
+          setFirebaseUser(null);
+          setTempFirebaseUser(null);
+          setShow2FAVerify(false);
+          
+          // If no user and no local profile, show onboarding
+          const storedProfile = localStorage.getItem('tekno_nova_profile');
+          if (!storedProfile) {
+            setShowOnboarding(true);
           }
         }
-
-        // If 2FA is enabled, we need to verify before setting firebaseUser
-        if (fetchedProfile?.twoFAEnabled) {
-          setTempFirebaseUser(user);
-          setProfile(fetchedProfile);
-          setShow2FAVerify(true);
-          return;
-        }
-
-        setFirebaseUser(user);
-        setProfile(prev => {
-          const profileToUse = fetchedProfile || prev;
-          if (!profileToUse) {
-            const newProfile: UserProfile = {
-              name: user.displayName || 'Gezgin',
-              level: 'Başlangıç',
-              totalQuestions: 0,
-              subscriptionTier: 'FREE',
-              isPremium: false,
-              deviceId: Math.random().toString(36).substring(7),
-              lastLogin: Date.now(),
-              securityVerified: true,
-              email: user.email || undefined,
-              stats: { projectsGenerated: 0, bugsFixed: 0, codeOptimized: 0 },
-              achievements: []
-            };
-            localStorage.setItem('tekno_nova_profile', JSON.stringify(newProfile));
-            return newProfile;
-          }
-          // Update existing profile with email if missing
-          if (!profileToUse.email && user.email) {
-            const updated = { ...profileToUse, email: user.email };
-            localStorage.setItem('tekno_nova_profile', JSON.stringify(updated));
-            return updated;
-          }
-          localStorage.setItem('tekno_nova_profile', JSON.stringify(profileToUse));
-          return profileToUse;
-        });
-        setShowOnboarding(false);
-      } else {
-        setFirebaseUser(null);
-        setTempFirebaseUser(null);
-        setShow2FAVerify(false);
+      } catch (error) {
+        console.error("Error in auth state listener:", error);
+      } finally {
+        setIsAuthLoading(false);
       }
     });
     return () => unsubscribe();
@@ -668,6 +711,7 @@ export default function App() {
       projectsGenerated: (profile.stats?.projectsGenerated || 0) + (mode === 'PROJECT_GEN' ? 1 : 0),
       bugsFixed: (profile.stats?.bugsFixed || 0) + (mode === 'DEBUGGER' ? 1 : 0),
       codeOptimized: (profile.stats?.codeOptimized || 0) + (mode === 'AI_OPTIMIZER' ? 1 : 0),
+      imagesGenerated: (profile.stats as any)?.imagesGenerated || 0 + (mode === 'IMAGE_GEN' ? 1 : 0),
     };
 
     let newAchievements = [...(profile.achievements || [])];
@@ -732,7 +776,7 @@ export default function App() {
   };
 
   const handleModeChange = (newMode: AppMode) => {
-    const premiumModes: AppMode[] = ['AI_OPTIMIZER', 'ROADMAP_GEN', 'EXPERT_MENTOR', 'LIVE_VOICE'];
+    const premiumModes: AppMode[] = ['AI_OPTIMIZER', 'ROADMAP_GEN', 'EXPERT_MENTOR', 'LIVE_VOICE', 'IMAGE_GEN'];
     if (premiumModes.includes(newMode) && profile?.subscriptionTier !== 'PRO') {
       setShowPremiumModal(true);
       setPremiumStep(1);
@@ -796,6 +840,39 @@ export default function App() {
     setCopiedIdx(idx);
     setTimeout(() => setCopiedIdx(null), 2000);
   };
+
+  if (isAuthLoading) {
+    return (
+      <div className="fixed inset-0 bg-zinc-950 flex flex-col items-center justify-center z-[200]">
+        <motion.div
+          initial={{ opacity: 0, scale: 0.8 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="relative"
+        >
+          <div className="w-24 h-24 bg-emerald-500 rounded-[2rem] flex items-center justify-center shadow-2xl shadow-emerald-500/20 rotate-12 mb-8">
+            <Star className="text-white w-12 h-12" />
+          </div>
+          <motion.div
+            animate={{ rotate: 360 }}
+            transition={{ repeat: Infinity, duration: 4, ease: "linear" }}
+            className="absolute -inset-4 border-2 border-dashed border-emerald-500/20 rounded-full"
+          />
+        </motion.div>
+        <h2 className="text-2xl font-display font-bold text-white mb-2">DeneyapAI</h2>
+        <p className="text-zinc-500 text-sm font-medium uppercase tracking-[0.3em]">Bitlis Stüdyo</p>
+        <div className="mt-12 flex gap-1">
+          {[0, 1, 2].map((i) => (
+            <motion.div
+              key={i}
+              animate={{ y: [0, -5, 0] }}
+              transition={{ repeat: Infinity, duration: 1, delay: i * 0.2 }}
+              className="w-1.5 h-1.5 bg-emerald-500 rounded-full"
+            />
+          ))}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex h-screen bg-zinc-950 text-zinc-100 overflow-hidden font-sans">
@@ -1698,6 +1775,25 @@ export default function App() {
             </div>
           </button>
 
+          <button
+            onClick={() => handleModeChange('IMAGE_GEN')}
+            className={cn(
+              "w-full flex items-center justify-between px-4 py-2.5 rounded-xl transition-all duration-200 group",
+              mode === 'IMAGE_GEN' && activeTab === 'chat'
+                ? "bg-purple-500/10 text-purple-400 border border-purple-500/20 shadow-lg shadow-purple-500/5" 
+                : "text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200"
+            )}
+          >
+            <div className="flex items-center gap-3">
+              <ImageIcon className={cn("w-4 h-4", mode === 'IMAGE_GEN' ? "text-purple-400" : "group-hover:text-zinc-200")} />
+              <span className="font-semibold text-sm">AI Görsel Üretici</span>
+            </div>
+            <div className="flex items-center gap-1">
+              <span className="text-[8px] font-black px-1 rounded bg-purple-500 text-white uppercase">Pro</span>
+              {!profile?.isPremium && <Key className="w-3 h-3 text-amber-500/50" />}
+            </div>
+          </button>
+
           <div className="pt-4 px-4 py-2 text-[10px] font-bold uppercase tracking-[0.2em] text-zinc-500 mb-1">Kişisel</div>
           <button
             onClick={() => setActiveTab('history')}
@@ -1862,7 +1958,35 @@ export default function App() {
               </div>
             ) : (
               <div className="p-4 md:p-8 space-y-6">
-              <AnimatePresence initial={false}>
+                {showDailyTip && (
+                  <motion.div 
+                    initial={{ opacity: 0, y: -20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="bg-emerald-500/5 border border-emerald-500/20 rounded-3xl p-6 relative overflow-hidden group"
+                  >
+                    <div className="absolute top-0 right-0 p-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <button 
+                        onClick={() => setShowDailyTip(false)}
+                        className="p-1 hover:bg-white/5 rounded-lg text-zinc-500 hover:text-white"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+                    <div className="flex items-start gap-4">
+                      <div className="w-10 h-10 bg-emerald-500/20 rounded-xl flex items-center justify-center shrink-0">
+                        <Lightbulb className="text-emerald-400 w-5 h-5" />
+                      </div>
+                      <div>
+                        <h4 className="text-xs font-bold text-emerald-400 uppercase tracking-widest mb-1">Günün Teknoloji İpucu</h4>
+                        <p className="text-sm text-zinc-300 leading-relaxed">
+                          {DAILY_TIPS[new Date().getDate() % DAILY_TIPS.length]}
+                        </p>
+                      </div>
+                    </div>
+                  </motion.div>
+                )}
+                
+                <AnimatePresence initial={false}>
                 {messages.map((msg, idx) => (
                   <motion.div
                     key={idx}
@@ -1900,7 +2024,19 @@ export default function App() {
                         msg.role === 'assistant' ? "markdown-body" : "text-sm md:text-base font-medium"
                       )}>
                         {msg.role === 'assistant' ? (
-                          <Markdown>{msg.content}</Markdown>
+                          msg.content.startsWith('data:image') ? (
+                            <div className="space-y-4">
+                              <img 
+                                src={msg.content} 
+                                alt="AI Generated" 
+                                className="w-full rounded-xl shadow-2xl border border-white/10"
+                                referrerPolicy="no-referrer"
+                              />
+                              <p className="text-xs text-zinc-500 italic">DeneyapAI tarafından üretilen teknolojik görsel.</p>
+                            </div>
+                          ) : (
+                            <Markdown>{msg.content}</Markdown>
+                          )
                         ) : (
                           msg.content
                         )}
@@ -2221,6 +2357,13 @@ export default function App() {
                       >
                         <Trash2 className="w-4 h-4" />
                         Hesabı Sil ve Sıfırla
+                      </button>
+                      <button 
+                        onClick={() => window.location.reload()}
+                        className="flex items-center justify-center gap-2 text-zinc-400 hover:text-zinc-200 text-sm font-bold p-3 rounded-xl border border-zinc-800 hover:bg-zinc-800/50 transition-all"
+                      >
+                        <RefreshCw className="w-4 h-4" />
+                        Sistemi Yenile
                       </button>
                     </div>
                     {!isFirebaseConfigured && (

@@ -50,6 +50,10 @@ MOD 8: CANLI SESLİ SOHBET (Premium)
 2. Samimi, akıcı ve doğal bir dille konuş.
 3. Teknik soruları sesli olarak anlaşılır şekilde açıkla.
 
+MOD 9: AI GÖRSEL ÜRETİCİ (Premium)
+1. Kullanıcının hayalindeki teknolojik tasarımı veya projeyi görselleştir.
+2. Sadece teknik ve bilimsel görseller üretmeye odaklan (Örn: "Geleceğin Bitlis'i", "Akıllı İHA tasarımı").
+
 Eğer kullanıcı ne yapacağını bilemezse, ona yardımcı olabileceğini söyle ve modları açıkla.
 
 MOBİL CİHAZLAR İÇİN FORMATLAMA KURALLARI (KRİTİK):
@@ -76,19 +80,33 @@ export async function generateResponse(prompt: string, mode: AppMode, profile: U
     'COMPONENT_LIB': 'BİLEŞEN KÜTÜPHANESİ (Sensörler ve bileşenler hakkında teknik bilgi ver)',
     'COMMUNITY_PROJS': 'TOPLULUK PROJELERİ (İlham verici Deneyap projeleri paylaş)',
     'EXPERT_MENTOR': 'UZMAN MENTOR (TEKNOFEST ve yarışmalar için profesyonel danışmanlık)',
-    'LIVE_VOICE': 'CANLI SESLİ SOHBET (Sesli interaktif asistanlık)'
+    'LIVE_VOICE': 'CANLI SESLİ SOHBET (Sesli interaktif asistanlık)',
+    'IMAGE_GEN': 'AI GÖRSEL ÜRETİCİ (Teknolojik tasarımlar ve görseller üret)'
   };
 
   const personalizedPrompt = `Şu an ${profile.level} seviyesindeki ${profile.name} isimli öğrenciye "${modeDescriptions[mode]}" modunda yanıt veriyorsun. Yanıtını bu modun kurallarına ve öğrencinin teknik bilgi seviyesine göre ayarla. Kullanıcı girdisi: ${prompt}`;
 
+  const modelName = mode === 'IMAGE_GEN' ? "gemini-2.5-flash-image" : "gemini-3-flash-preview";
+
   const response = await ai.models.generateContent({
-    model: "gemini-3-flash-preview",
+    model: modelName,
     contents: personalizedPrompt,
     config: {
       systemInstruction: SYSTEM_INSTRUCTION,
       temperature: 0.7,
     },
   });
+
+  if (mode === 'IMAGE_GEN') {
+    // Find the image part in the response
+    for (const part of response.candidates?.[0]?.content?.parts || []) {
+      if (part.inlineData) {
+        return `data:${part.inlineData.mimeType};base64,${part.inlineData.data}`;
+      }
+    }
+    // If no image part, return the text part if it exists
+    return response.text || "Görsel üretilemedi.";
+  }
 
   return response.text || "Üzgünüm, bir hata oluştu. Lütfen tekrar dene.";
 }

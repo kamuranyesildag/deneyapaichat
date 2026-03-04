@@ -1,4 +1,4 @@
-export type AppMode = 'PROJECT_GEN' | 'DEBUGGER' | 'AI_OPTIMIZER' | 'ROADMAP_GEN' | 'COMPONENT_LIB' | 'COMMUNITY_PROJS' | 'EXPERT_MENTOR' | 'LIVE_VOICE';
+export type AppMode = 'PROJECT_GEN' | 'DEBUGGER' | 'AI_OPTIMIZER' | 'ROADMAP_GEN' | 'COMPONENT_LIB' | 'COMMUNITY_PROJS' | 'EXPERT_MENTOR' | 'LIVE_VOICE' | 'IMAGE_GEN';
 
 export interface Message {
   role: 'user' | 'assistant';
