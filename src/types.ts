@@ -1,4 +1,4 @@
-export type AppMode = 'PROJECT_GEN' | 'DEBUGGER' | 'AI_OPTIMIZER' | 'ROADMAP_GEN' | 'COMPONENT_LIB' | 'COMMUNITY_PROJS' | 'EXPERT_MENTOR' | 'LIVE_VOICE' | 'IMAGE_GEN';
+export type AppMode = 'PROJECT_GEN' | 'DEBUGGER' | 'AI_OPTIMIZER' | 'ROADMAP_GEN' | 'COMPONENT_LIB' | 'COMMUNITY_PROJS' | 'EXPERT_MENTOR' | 'LIVE_VOICE' | 'IMAGE_GEN' | 'SUBSCRIPTION' | 'FAQ' | 'TERMS' | 'PRIVACY' | 'DAILY_CHALLENGE' | 'TECH_NEWS';
 
 export interface Message {
   role: 'user' | 'assistant';
@@ -25,6 +25,8 @@ export interface UserProfile {
     projectsGenerated: number;
     bugsFixed: number;
     codeOptimized: number;
+    imagesGenerated?: number;
+    challengesCompleted?: number;
   };
 }
 

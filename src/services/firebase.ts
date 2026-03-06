@@ -30,8 +30,12 @@ export const isFirebaseConfigured = !!(
   firebaseConfig.apiKey.length > 10 && 
   !firebaseConfig.apiKey.includes("YOUR_") &&
   firebaseConfig.authDomain &&
-  !firebaseConfig.authDomain.includes("YOUR_")
+  !firebaseConfig.authDomain.includes("YOUR_") &&
+  firebaseConfig.projectId &&
+  !firebaseConfig.projectId.includes("YOUR_")
 );
+
+export let firebaseConfigError = "";
 
 let app: FirebaseApp | undefined;
 let auth: Auth | undefined;
@@ -41,7 +45,8 @@ let db: Firestore | undefined;
 if (isFirebaseConfigured) {
   // Check if authDomain is likely incorrect
   if (firebaseConfig.authDomain?.includes("vercel.app") || firebaseConfig.authDomain?.includes("run.app")) {
-    console.error("CRITICAL: VITE_FIREBASE_AUTH_DOMAIN is likely incorrect. It must be your Firebase 'authDomain' (e.g., project-id.firebaseapp.com), NOT your app's deployment URL.");
+    firebaseConfigError = "KRİTİK HATA: VITE_FIREBASE_AUTH_DOMAIN yanlış yapılandırılmış. Bu değer Firebase Console'daki 'authDomain' olmalıdır (örn: proje-id.firebaseapp.com), uygulamanın kendi URL'si değil. Lütfen .env dosyanızı güncelleyin.";
+    console.error(firebaseConfigError);
   }
   
   try {

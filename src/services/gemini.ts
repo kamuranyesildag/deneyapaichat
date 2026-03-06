@@ -54,6 +54,16 @@ MOD 9: AI GÖRSEL ÜRETİCİ (Premium)
 1. Kullanıcının hayalindeki teknolojik tasarımı veya projeyi görselleştir.
 2. Sadece teknik ve bilimsel görseller üretmeye odaklan (Örn: "Geleceğin Bitlis'i", "Akıllı İHA tasarımı").
 
+MOD 10: GÜNÜN GÖREVİ (Ücretsiz)
+1. Kullanıcıya her gün farklı bir kodlama (Arduino, Python) veya donanım (Devre tasarımı) görevi ver.
+2. Görevi "Kolay", "Orta" ve "Zor" olarak 3 seviyede sun.
+3. Görevi tamamlayan kullanıcıyı motive et ve çözüm için ipuçları ver.
+
+MOD 11: TEKNOLOJİ HABERLERİ (Ücretsiz)
+1. Türkiye ve dünyadan en güncel teknoloji, yapay zeka ve uzay haberlerini özetle.
+2. Haberleri "Milli Teknoloji Hamlesi" perspektifiyle yorumla.
+3. Gençlere yönelik kariyer ve gelişim fırsatlarını vurgula.
+
 Eğer kullanıcı ne yapacağını bilemezse, ona yardımcı olabileceğini söyle ve modları açıkla.
 
 MOBİL CİHAZLAR İÇİN FORMATLAMA KURALLARI (KRİTİK):
@@ -81,19 +91,28 @@ export async function generateResponse(prompt: string, mode: AppMode, profile: U
     'COMMUNITY_PROJS': 'TOPLULUK PROJELERİ (İlham verici Deneyap projeleri paylaş)',
     'EXPERT_MENTOR': 'UZMAN MENTOR (TEKNOFEST ve yarışmalar için profesyonel danışmanlık)',
     'LIVE_VOICE': 'CANLI SESLİ SOHBET (Sesli interaktif asistanlık)',
-    'IMAGE_GEN': 'AI GÖRSEL ÜRETİCİ (Teknolojik tasarımlar ve görseller üret)'
+    'IMAGE_GEN': 'AI GÖRSEL ÜRETİCİ (Teknolojik tasarımlar ve görseller üret)',
+    'DAILY_CHALLENGE': 'GÜNÜN GÖREVİ (Kullanıcıya her gün farklı bir kodlama veya donanım görevi ver)',
+    'TECH_NEWS': 'TEKNOLOJİ HABERLERİ (Güncel teknoloji ve bilim dünyasından haberler)',
+    'SUBSCRIPTION': 'ABONELİK VE PLANLAR (Bilgi sayfası)',
+    'FAQ': 'SIKÇA SORULAN SORULAR (Bilgi sayfası)',
+    'TERMS': 'HİZMET ŞARTLARI (Bilgi sayfası)',
+    'PRIVACY': 'GİZLİLİK POLİTİKASI (Bilgi sayfası)'
   };
 
-  const personalizedPrompt = `Şu an ${profile.level} seviyesindeki ${profile.name} isimli öğrenciye "${modeDescriptions[mode]}" modunda yanıt veriyorsun. Yanıtını bu modun kurallarına ve öğrencinin teknik bilgi seviyesine göre ayarla. Kullanıcı girdisi: ${prompt}`;
+  const isPro = profile.subscriptionTier === 'PRO';
+  const modelName = mode === 'IMAGE_GEN' ? "gemini-2.5-flash-image" : (isPro ? "gemini-3.1-pro-preview" : "gemini-3-flash-preview");
 
-  const modelName = mode === 'IMAGE_GEN' ? "gemini-2.5-flash-image" : "gemini-3-flash-preview";
+  const promptContent = mode === 'IMAGE_GEN' 
+    ? `Create a high-quality, professional technological image of: ${prompt}. Focus on scientific and engineering details.`
+    : `Şu an ${profile.level} seviyesindeki ${profile.name} isimli öğrenciye "${modeDescriptions[mode]}" modunda yanıt veriyorsun. Yanıtını bu modun kurallarına ve öğrencinin teknik bilgi seviyesine göre ayarla. Kullanıcı girdisi: ${prompt}`;
 
   const response = await ai.models.generateContent({
     model: modelName,
-    contents: personalizedPrompt,
+    contents: promptContent,
     config: {
-      systemInstruction: SYSTEM_INSTRUCTION,
-      temperature: 0.7,
+      systemInstruction: mode === 'IMAGE_GEN' ? undefined : SYSTEM_INSTRUCTION,
+      temperature: mode === 'IMAGE_GEN' ? 1.0 : 0.7,
     },
   });
 
