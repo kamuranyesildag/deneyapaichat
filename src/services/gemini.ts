@@ -88,12 +88,13 @@ export async function generateResponse(prompt: string, mode: AppMode, profile: U
     'AI_OPTIMIZER': 'AI KOD OPTİMİZASYONU (Kodu performans ve okunabilirlik için iyileştir)',
     'ROADMAP_GEN': 'PROJE YOL HARİTASI (4 haftalık çalışma planı oluştur)',
     'COMPONENT_LIB': 'BİLEŞEN KÜTÜPHANESİ (Sensörler ve bileşenler hakkında teknik bilgi ver)',
-    'COMMUNITY_PROJS': 'TOPLULUK PROJELERİ (İlham verici Deneyap projeleri paylaş)',
     'EXPERT_MENTOR': 'UZMAN MENTOR (TEKNOFEST ve yarışmalar için profesyonel danışmanlık)',
     'LIVE_VOICE': 'CANLI SESLİ SOHBET (Sesli interaktif asistanlık)',
     'IMAGE_GEN': 'AI GÖRSEL ÜRETİCİ (Teknolojik tasarımlar ve görseller üret)',
     'DAILY_CHALLENGE': 'GÜNÜN GÖREVİ (Kullanıcıya her gün farklı bir kodlama veya donanım görevi ver)',
     'TECH_NEWS': 'TEKNOLOJİ HABERLERİ (Güncel teknoloji ve bilim dünyasından haberler)',
+    'QUIZ': 'TEKNOLOJİ QUİZ (Kullanıcıya teknoloji ve kodlama soruları sor)',
+    'SHOWCASE': 'TOPLULUK VİTRİNİ (Kullanıcıların paylaştığı projeleri sergile)',
     'SUBSCRIPTION': 'ABONELİK VE PLANLAR (Bilgi sayfası)',
     'FAQ': 'SIKÇA SORULAN SORULAR (Bilgi sayfası)',
     'TERMS': 'HİZMET ŞARTLARI (Bilgi sayfası)',
@@ -128,4 +129,35 @@ export async function generateResponse(prompt: string, mode: AppMode, profile: U
   }
 
   return response.text || "Üzgünüm, bir hata oluştu. Lütfen tekrar dene.";
+}
+
+export async function generateQuiz(profile: UserProfile) {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) throw new Error("API_KEY_MISSING");
+
+  const ai = new GoogleGenAI({ apiKey });
+  const model = ai.models.generateContent({
+    model: "gemini-3-flash-preview",
+    contents: `Lütfen ${profile.level} seviyesindeki bir öğrenci için 5 soruluk bir teknoloji quizi hazırla. 
+    Sorular Arduino, Python, Robotik ve Genel Teknoloji konularında olsun.
+    Yanıtı KESİNLİKLE şu JSON formatında ver:
+    [
+      {
+        "question": "Soru metni",
+        "options": ["A seçeneği", "B seçeneği", "C seçeneği", "D seçeneği"],
+        "correctIdx": 0
+      }
+    ]`,
+    config: {
+      responseMimeType: "application/json"
+    }
+  });
+
+  const response = await model;
+  try {
+    return JSON.parse(response.text || "[]");
+  } catch (e) {
+    console.error("Quiz parse error:", e);
+    return [];
+  }
 }

@@ -1,4 +1,4 @@
-export type AppMode = 'PROJECT_GEN' | 'DEBUGGER' | 'AI_OPTIMIZER' | 'ROADMAP_GEN' | 'COMPONENT_LIB' | 'COMMUNITY_PROJS' | 'EXPERT_MENTOR' | 'LIVE_VOICE' | 'IMAGE_GEN' | 'SUBSCRIPTION' | 'FAQ' | 'TERMS' | 'PRIVACY' | 'DAILY_CHALLENGE' | 'TECH_NEWS';
+export type AppMode = 'PROJECT_GEN' | 'DEBUGGER' | 'AI_OPTIMIZER' | 'ROADMAP_GEN' | 'COMPONENT_LIB' | 'EXPERT_MENTOR' | 'LIVE_VOICE' | 'IMAGE_GEN' | 'SUBSCRIPTION' | 'FAQ' | 'TERMS' | 'PRIVACY' | 'DAILY_CHALLENGE' | 'TECH_NEWS' | 'QUIZ' | 'SHOWCASE';
 
 export interface Message {
   role: 'user' | 'assistant';
@@ -20,6 +20,7 @@ export interface UserProfile {
   email?: string;
   twoFAEnabled?: boolean;
   twoFASecret?: string;
+  kvkkAccepted?: boolean;
   achievements?: string[];
   stats?: {
     projectsGenerated: number;
@@ -27,6 +28,9 @@ export interface UserProfile {
     codeOptimized: number;
     imagesGenerated?: number;
     challengesCompleted?: number;
+    quizScore?: number;
+    quizCount?: number;
+    projectsShared?: number;
   };
 }
 

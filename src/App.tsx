@@ -31,6 +31,7 @@ import {
   X,
   ShieldCheck,
   Zap,
+  Lock,
   Settings,
   Key,
   ArrowLeft,
@@ -48,7 +49,7 @@ import {
   Headphones,
   Waves,
   Mail,
-  Lock,
+  Share2,
   Shield,
   Eye,
   EyeOff,
@@ -63,11 +64,26 @@ import { motion, AnimatePresence } from 'motion/react';
 import Markdown from 'react-markdown';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
-import { generateResponse } from './services/gemini';
+import { generateResponse, generateQuiz } from './services/gemini';
 import { AppMode, Message, UserProfile, HistoryItem } from './types';
 import LiveVoiceView from './components/LiveVoiceView';
 import { OTP } from 'otplib';
 import { QRCodeSVG } from 'qrcode.react';
+
+import { 
+  LineChart, 
+  Line, 
+  XAxis, 
+  YAxis, 
+  CartesianGrid, 
+  Tooltip, 
+  ResponsiveContainer,
+  AreaChart,
+  Area,
+  BarChart,
+  Bar,
+  Cell
+} from 'recharts';
 
 // Create a robust authenticator instance for otplib v13+
 const authenticator = new OTP();
@@ -86,6 +102,32 @@ interface ChangelogItem {
 }
 
 const CHANGELOG: ChangelogItem[] = [
+  {
+    version: '4.1.0',
+    date: '7 Mart 2026',
+    title: 'Topluluk ve Görsel Üretici Güncellemesi',
+    type: 'minor',
+    changes: [
+      'Görsel Üretici Limitleri: Ücretsiz (2), Basic (25), Pro (Sınırsız) olarak güncellendi.',
+      'Topluluk Vitrini İyileştirmeleri: Projeler için detaylı görünüm ve görsel URL desteği eklendi.',
+      'Hesap Oluşturma: Başarılı kayıt sonrası bilgilendirme bildirimi eklendi.',
+      'Hata Düzeltmeleri: Çalışmayan bazı butonlar ve UI hataları giderildi.',
+      'Performans: Sayfa geçişleri ve modal animasyonları optimize edildi.'
+    ]
+  },
+  {
+    version: '4.0.0',
+    date: '6 Mart 2026',
+    title: 'Büyük Yeni Özellik Paketi: Quiz, Vitrin ve İstatistikler',
+    type: 'major',
+    changes: [
+      'Teknoloji Bilgi Yarışması (Quiz): Gemini destekli interaktif bilgi yarışması eklendi.',
+      'Topluluk Vitrini (Showcase): Projelerinizi paylaşabileceğiniz ve diğerlerini görebileceğiniz alan.',
+      'Gelişmiş İstatistikler: Recharts ile görselleştirilmiş kullanım ve başarı grafikleri.',
+      'Yeni UI Bileşenleri: Daha akıcı geçişler ve modern yan panel kategorileri.',
+      'Performans Optimizasyonu: Uygulama yükleme hızı ve bellek kullanımı iyileştirildi.'
+    ]
+  },
   {
     version: '3.0.0',
     date: '4 Mart 2026',
@@ -209,6 +251,22 @@ export default function App() {
   const [twoFAVerifyCode, setTwoFAVerifyCode] = useState('');
   const [is2FAEnabled, setIs2FAEnabled] = useState(false);
   const [twoFAError, setTwoFAError] = useState('');
+  const [showKvkkModal, setShowKvkkModal] = useState(false);
+  const [generatedImages, setGeneratedImages] = useState<{url: string, prompt: string, timestamp: number}[]>([]);
+  const [activeChallenge, setActiveChallenge] = useState<{title: string, description: string, level: string, points: number} | null>(null);
+  const [quizQuestions, setQuizQuestions] = useState<{question: string, options: string[], correctIdx: number}[]>([]);
+  const [currentQuizIdx, setCurrentQuizIdx] = useState(0);
+  const [quizScore, setQuizScore] = useState(0);
+  const [showQuizResult, setShowQuizResult] = useState(false);
+  const [showShowcaseModal, setShowShowcaseModal] = useState(false);
+  const [selectedProject, setSelectedProject] = useState<{id: string, title: string, author: string, description: string, likes: number, category: string, image?: string} | null>(null);
+  const [showcaseProjects, setShowcaseProjects] = useState<{id: string, title: string, author: string, description: string, likes: number, category: string, image?: string}[]>([
+    { id: '1', title: 'Akıllı Sera Sistemi', author: 'Ahmet Y.', description: 'Deneyap Kart ve nem sensörü kullanarak geliştirdiğim otomatik sulama sistemi.', likes: 24, category: 'Tarım', image: 'https://picsum.photos/seed/greenhouse/800/600' },
+    { id: '2', title: 'Engel Tanımayan Robot', author: 'Elif K.', description: 'HC-SR04 ve servo motor ile engelleri algılayıp yön değiştiren robot.', likes: 42, category: 'Robotik', image: 'https://picsum.photos/seed/robot/800/600' },
+    { id: '3', title: 'Hava Kalitesi İstasyonu', author: 'Mehmet S.', description: 'MQ-135 sensörü ile hava kalitesini ölçüp OLED ekranda gösteren proje.', likes: 15, category: 'Çevre', image: 'https://picsum.photos/seed/air/800/600' }
+  ]);
+
+  const PREMIUM_MODES: AppMode[] = ['AI_OPTIMIZER', 'ROADMAP_GEN', 'EXPERT_MENTOR', 'LIVE_VOICE', 'IMAGE_GEN'];
 
   const addNotification = (message: string, type: 'success' | 'error' | 'info' = 'info') => {
     const id = Math.random().toString(36).substring(7);
@@ -483,6 +541,7 @@ export default function App() {
     try {
       if (isRegistering) {
         await createUserWithEmailAndPassword(auth, email, password);
+        addNotification("Hesap başarıyla oluşturuldu! Hoş geldin. 🚀", "success");
       } else {
         await signInWithEmailAndPassword(auth, email, password);
       }
@@ -648,6 +707,10 @@ export default function App() {
       };
       setProfile(updatedProfile);
       localStorage.setItem('tekno_nova_profile', JSON.stringify(updatedProfile));
+      
+      if (!updatedProfile.kvkkAccepted) {
+        setShowKvkkModal(true);
+      }
     } else {
       setShowOnboarding(true);
     }
@@ -741,6 +804,16 @@ export default function App() {
     window.location.href = `mailto:imranyesildag123@gmail.com?subject=${subject}&body=${body}`;
   };
 
+  const handleAcceptKvkk = () => {
+    if (profile) {
+      const updatedProfile = { ...profile, kvkkAccepted: true };
+      setProfile(updatedProfile);
+      localStorage.setItem('tekno_nova_profile', JSON.stringify(updatedProfile));
+      setShowKvkkModal(false);
+      addNotification('KVKK Aydınlatma Metni kabul edildi.', 'success');
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!input.trim() || isLoading || !profile) return;
@@ -788,13 +861,13 @@ export default function App() {
       const tier = profile.subscriptionTier || 'FREE';
       const count = (profile.stats as any)?.imagesGenerated || 0;
       let limit = 2;
-      if (tier === 'BASIC') limit = 20;
+      if (tier === 'BASIC') limit = 25;
       if (tier === 'PRO') limit = Infinity;
       
       if (count >= limit) {
         const assistantMessage: Message = {
           role: 'assistant',
-          content: `Görsel oluşturma limitine ulaştın! 🎨 ${tier === 'FREE' ? 'Ücretsiz planda 2, Basic planda 20 görsel oluşturabilirsin.' : 'Basic planda 20 görsel oluşturabilirsin.'} Sınırsız görsel ve daha fazlası için Pro'ya geçebilirsin.`,
+          content: `Görsel oluşturma limitine ulaştın! 🎨 ${tier === 'FREE' ? 'Ücretsiz planda 2, Basic planda 25 görsel oluşturabilirsin.' : 'Basic planda 25 görsel oluşturabilirsin.'} Sınırsız görsel ve daha fazlası için Pro'ya geçebilirsin.`,
           timestamp: Date.now(),
         };
         setMessages(prev => [...prev, assistantMessage]);
@@ -842,6 +915,11 @@ export default function App() {
 
     try {
       const responseText = await generateResponse(currentInput, mode, profile);
+      
+      if (mode === 'IMAGE_GEN') {
+        setGeneratedImages(prev => [{ url: responseText, prompt: currentInput, timestamp: Date.now() }, ...prev]);
+      }
+
       const assistantMessage: Message = {
         role: 'assistant',
         content: responseText,
@@ -886,13 +964,84 @@ export default function App() {
     }
   };
 
+  const handleStartQuiz = async () => {
+    if (!profile) return;
+    setIsLoading(true);
+    setQuizQuestions([]);
+    setCurrentQuizIdx(0);
+    setQuizScore(0);
+    setShowQuizResult(false);
+    setMode('QUIZ');
+    setActiveTab('chat');
+
+    try {
+      const questions = await generateQuiz(profile);
+      if (questions && questions.length > 0) {
+        setQuizQuestions(questions);
+      } else {
+        throw new Error("No questions generated");
+      }
+    } catch (error) {
+      console.error("Quiz Error:", error);
+      addNotification("Quiz yüklenirken bir hata oluştu.", "error");
+      // Fallback questions
+      setQuizQuestions([
+        { question: "Arduino Uno'nun kalbi olan mikrodenetleyici hangisidir?", options: ["ATmega328P", "ESP32", "STM32", "PIC16F877A"], correctIdx: 0 },
+        { question: "Python'da liste sonuna eleman eklemek için hangi metod kullanılır?", options: ["add()", "push()", "append()", "insert()"], correctIdx: 2 }
+      ]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleQuizAnswer = (selectedIdx: number) => {
+    const currentQuestion = quizQuestions[currentQuizIdx];
+    const isCorrect = selectedIdx === currentQuestion.correctIdx;
+    
+    if (isCorrect) {
+      setQuizScore(prev => prev + 1);
+      addNotification("Doğru cevap! 🎉", "success");
+    } else {
+      addNotification(`Yanlış cevap. Doğru: ${currentQuestion.options[currentQuestion.correctIdx]}`, "error");
+    }
+
+    if (currentQuizIdx < quizQuestions.length - 1) {
+      setCurrentQuizIdx(prev => prev + 1);
+    } else {
+      setShowQuizResult(true);
+      // Update profile stats
+      if (profile) {
+        const finalScore = isCorrect ? quizScore + 1 : quizScore;
+        const updatedProfile: UserProfile = {
+          ...profile,
+          stats: {
+            ...profile.stats!,
+            quizScore: (profile.stats?.quizScore || 0) + finalScore,
+            quizCount: (profile.stats?.quizCount || 0) + 1
+          }
+        };
+        setProfile(updatedProfile);
+        localStorage.setItem('tekno_nova_profile', JSON.stringify(updatedProfile));
+      }
+    }
+  };
+
+  const handleLikeProject = (id: string) => {
+    setShowcaseProjects(prev => prev.map(p => p.id === id ? { ...p, likes: p.likes + 1 } : p));
+    addNotification("Proje beğenildi! ❤️", "success");
+  };
+
   const handleModeChange = (newMode: AppMode) => {
-    const premiumModes: AppMode[] = ['AI_OPTIMIZER', 'ROADMAP_GEN', 'EXPERT_MENTOR', 'LIVE_VOICE'];
-    if (premiumModes.includes(newMode) && profile?.subscriptionTier !== 'PRO') {
+    if (PREMIUM_MODES.includes(newMode) && profile?.subscriptionTier !== 'PRO') {
       setMode('SUBSCRIPTION');
       setActiveTab('modes');
       setShowMobileMenu(false);
       addNotification("Bu özellik için Pro üyelik gereklidir.", "info");
+      return;
+    }
+    
+    if (newMode === 'QUIZ') {
+      handleStartQuiz();
       return;
     }
     
@@ -1353,6 +1502,32 @@ export default function App() {
                 </button>
 
                 <button
+                  onClick={() => handleModeChange('QUIZ')}
+                  className={cn(
+                    "w-full flex items-center gap-3 px-4 py-2.5 rounded-xl transition-all duration-200 group",
+                    mode === 'QUIZ' && activeTab === 'chat'
+                      ? "bg-amber-500/10 text-amber-400 border border-amber-500/20 shadow-lg shadow-amber-500/5" 
+                      : "text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200"
+                  )}
+                >
+                  <Award className={cn("w-4 h-4", mode === 'QUIZ' ? "text-amber-400" : "group-hover:text-zinc-200")} />
+                  <span className="font-semibold text-sm">Teknoloji Quiz</span>
+                </button>
+
+                <button
+                  onClick={() => handleModeChange('SHOWCASE')}
+                  className={cn(
+                    "w-full flex items-center gap-3 px-4 py-2.5 rounded-xl transition-all duration-200 group",
+                    mode === 'SHOWCASE' && activeTab === 'chat'
+                      ? "bg-purple-500/10 text-purple-400 border border-purple-500/20 shadow-lg shadow-purple-500/5" 
+                      : "text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200"
+                  )}
+                >
+                  <ImageIcon className={cn("w-4 h-4", mode === 'SHOWCASE' ? "text-purple-400" : "group-hover:text-zinc-200")} />
+                  <span className="font-semibold text-sm">Topluluk Vitrini</span>
+                </button>
+
+                <button
                   onClick={() => handleModeChange('DEBUGGER')}
                   className={cn(
                     "w-full flex items-center gap-3 px-4 py-2.5 rounded-xl transition-all duration-200 group",
@@ -1376,37 +1551,6 @@ export default function App() {
                 >
                   <Cpu className={cn("w-4 h-4", mode === 'COMPONENT_LIB' ? "text-zinc-300" : "group-hover:text-zinc-200")} />
                   <span className="font-semibold text-sm">Bileşen Kütüphanesi</span>
-                </button>
-
-                <button
-                  onClick={() => handleModeChange('COMMUNITY_PROJS')}
-                  className={cn(
-                    "w-full flex items-center gap-3 px-4 py-2.5 rounded-xl transition-all duration-200 group",
-                    mode === 'COMMUNITY_PROJS' && activeTab === 'chat'
-                      ? "bg-zinc-500/10 text-zinc-300 border border-zinc-500/20" 
-                      : "text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200"
-                  )}
-                >
-                  <Github className={cn("w-4 h-4", mode === 'COMMUNITY_PROJS' ? "text-zinc-300" : "group-hover:text-zinc-200")} />
-                  <span className="font-semibold text-sm">Topluluk Projeleri</span>
-                </button>
-
-                <button
-                  onClick={() => handleModeChange('IMAGE_GEN')}
-                  className={cn(
-                    "w-full flex items-center justify-between px-4 py-2.5 rounded-xl transition-all duration-200 group",
-                    mode === 'IMAGE_GEN' && activeTab === 'chat'
-                      ? "bg-purple-500/10 text-purple-400 border border-purple-500/20 shadow-lg shadow-purple-500/5" 
-                      : "text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200"
-                  )}
-                >
-                  <div className="flex items-center gap-3">
-                    <ImageIcon className={cn("w-4 h-4", mode === 'IMAGE_GEN' ? "text-purple-400" : "group-hover:text-zinc-200")} />
-                    <span className="font-semibold text-sm">AI Görsel Üretici</span>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <span className="text-[8px] font-black px-1 rounded bg-purple-500/20 text-purple-400 uppercase">Limitli</span>
-                  </div>
                 </button>
 
                 <button
@@ -1437,6 +1581,26 @@ export default function App() {
 
                 <div className="pt-4 px-4 py-2 text-[10px] font-bold uppercase tracking-[0.2em] text-zinc-500 mb-1">Premium Modlar</div>
                 <button
+                  onClick={() => handleModeChange('IMAGE_GEN')}
+                  className={cn(
+                    "w-full flex items-center justify-between px-4 py-2.5 rounded-xl transition-all duration-200 group",
+                    mode === 'IMAGE_GEN' && activeTab === 'chat'
+                      ? "bg-purple-500/10 text-purple-400 border border-purple-500/20 shadow-lg shadow-purple-500/5" 
+                      : "text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200"
+                  )}
+                >
+                  <div className="flex items-center gap-3">
+                    <ImageIcon className={cn("w-4 h-4", mode === 'IMAGE_GEN' ? "text-purple-400" : "group-hover:text-zinc-200")} />
+                    <span className="font-semibold text-sm">AI Görsel Üretici</span>
+                  </div>
+                  {profile?.subscriptionTier !== 'PRO' ? (
+                    <Lock className="w-3 h-3 text-purple-500/40" />
+                  ) : (
+                    <span className="text-[8px] font-black px-1 rounded bg-purple-500/20 text-purple-400 uppercase">Pro</span>
+                  )}
+                </button>
+
+                <button
                   onClick={() => handleModeChange('AI_OPTIMIZER')}
                   className={cn(
                     "w-full flex items-center justify-between px-4 py-2.5 rounded-xl transition-all duration-200 group",
@@ -1449,7 +1613,11 @@ export default function App() {
                     <Zap className={cn("w-4 h-4", mode === 'AI_OPTIMIZER' ? "text-amber-400" : "group-hover:text-zinc-200")} />
                     <span className="font-semibold text-sm">AI Kod Optimizasyonu</span>
                   </div>
-                  {!profile?.isPremium && <Key className="w-3 h-3 text-amber-500/50" />}
+                  {profile?.subscriptionTier !== 'PRO' ? (
+                    <Lock className="w-3 h-3 text-amber-500/40" />
+                  ) : (
+                    <span className="text-[8px] font-black px-1 rounded bg-amber-500/20 text-amber-400 uppercase">Pro</span>
+                  )}
                 </button>
 
                 <button
@@ -1465,7 +1633,11 @@ export default function App() {
                     <ChevronRight className={cn("w-4 h-4", mode === 'ROADMAP_GEN' ? "text-amber-400" : "group-hover:text-zinc-200")} />
                     <span className="font-semibold text-sm">Proje Yol Haritası</span>
                   </div>
-                  {!profile?.isPremium && <Key className="w-3 h-3 text-amber-500/50" />}
+                  {profile?.subscriptionTier !== 'PRO' ? (
+                    <Lock className="w-3 h-3 text-amber-500/40" />
+                  ) : (
+                    <span className="text-[8px] font-black px-1 rounded bg-amber-500/20 text-amber-400 uppercase">Pro</span>
+                  )}
                 </button>
 
                 <button
@@ -1481,7 +1653,11 @@ export default function App() {
                     <Award className={cn("w-4 h-4", mode === 'EXPERT_MENTOR' ? "text-amber-400" : "group-hover:text-zinc-200")} />
                     <span className="font-semibold text-sm">Uzman Mentor</span>
                   </div>
-                  {!profile?.isPremium && <Key className="w-3 h-3 text-amber-500/50" />}
+                  {profile?.subscriptionTier !== 'PRO' ? (
+                    <Lock className="w-3 h-3 text-amber-500/40" />
+                  ) : (
+                    <span className="text-[8px] font-black px-1 rounded bg-amber-500/20 text-amber-400 uppercase">Pro</span>
+                  )}
                 </button>
 
                 <button
@@ -1495,12 +1671,13 @@ export default function App() {
                 >
                   <div className="flex items-center gap-3">
                     <Radio className={cn("w-4 h-4", mode === 'LIVE_VOICE' ? "text-red-400 animate-pulse" : "group-hover:text-zinc-200")} />
-                    <span className="font-semibold text-sm">Canlı Sesli Sohbet</span>
+                    <span className="font-semibold text-sm">Sesli Sohbet</span>
                   </div>
-                  <div className="flex items-center gap-1">
+                  {profile?.subscriptionTier !== 'PRO' ? (
+                    <Lock className="w-3 h-3 text-red-500/40" />
+                  ) : (
                     <span className="text-[8px] font-black px-1 rounded bg-red-500 text-white uppercase">Pro</span>
-                    {!profile?.isPremium && <Key className="w-3 h-3 text-amber-500/50" />}
-                  </div>
+                  )}
                 </button>
 
                 <div className="pt-4 px-4 py-2 text-[10px] font-bold uppercase tracking-[0.2em] text-zinc-500 mb-1">Destek & Bilgi</div>
@@ -1763,199 +1940,107 @@ export default function App() {
       </AnimatePresence>
 
       {/* Sidebar */}
-      <aside className="w-80 border-r border-white/5 bg-[#080808] flex flex-col hidden lg:flex shrink-0 h-screen sticky top-0 z-20">
-        <div className="p-8">
-          <div className="flex items-center gap-4 mb-2 group cursor-pointer">
-            <div className="w-12 h-12 bg-emerald-500 rounded-2xl flex items-center justify-center shadow-2xl shadow-emerald-500/40 transition-transform group-hover:scale-110 group-hover:rotate-6">
-              <Star className="text-white w-7 h-7" />
+      <aside className="w-20 lg:w-80 border-r border-white/5 bg-black/40 backdrop-blur-3xl flex flex-col hidden md:flex shrink-0 h-screen sticky top-0 z-50 transition-all duration-500 group/sidebar">
+        <div className="p-6 lg:p-8">
+          <div className="flex items-center gap-4 group cursor-pointer" onClick={() => handleModeChange('PROJECT_GEN')}>
+            <div className="w-10 h-10 lg:w-14 lg:h-14 bg-gradient-to-br from-emerald-400 to-teal-600 rounded-[1.5rem] flex items-center justify-center shadow-2xl shadow-emerald-500/20 transition-all duration-700 group-hover:scale-110 group-hover:rotate-6 group-hover:shadow-emerald-500/40">
+              <Star className="text-white w-6 h-6 lg:w-8 lg:h-8" />
             </div>
-            <div>
-              <h1 className="font-display font-bold text-2xl tracking-tight text-white">DeneyapAI</h1>
+            <div className="hidden lg:block opacity-0 group-hover/sidebar:opacity-100 transition-opacity duration-500">
+              <h1 className="font-display font-bold text-2xl tracking-tight text-white leading-none mb-1">DeneyapAI</h1>
               <div className="flex items-center gap-1.5">
                 <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
-                <p className="text-[10px] text-zinc-500 font-black uppercase tracking-[0.2em]">Sürüm 3.0</p>
+                <p className="text-[9px] text-zinc-500 font-black uppercase tracking-[0.2em]">Next-Gen v4.5</p>
               </div>
             </div>
           </div>
         </div>
 
-        <nav className="flex-1 px-4 pb-8 space-y-8 overflow-y-auto custom-scrollbar">
-          {/* Temel Araçlar */}
-          <div className="space-y-2">
-            <div className="px-4 text-[10px] font-black uppercase tracking-[0.2em] text-zinc-600">Temel Araçlar</div>
-            <div className="space-y-1">
-              <button
-                onClick={() => handleModeChange('PROJECT_GEN')}
-                className={cn(
-                  "w-full flex items-center gap-3 px-4 py-3 rounded-2xl transition-all duration-300 group",
-                  mode === 'PROJECT_GEN' && activeTab === 'chat'
-                    ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 shadow-lg shadow-emerald-500/5" 
-                    : "text-zinc-500 hover:bg-white/5 hover:text-zinc-200"
-                )}
-              >
-                <Lightbulb className={cn("w-5 h-5 transition-colors", mode === 'PROJECT_GEN' ? "text-emerald-400" : "group-hover:text-zinc-200")} />
-                <span className="font-bold text-sm">Proje Üretici</span>
-              </button>
-
-              <button
-                onClick={() => handleModeChange('DAILY_CHALLENGE')}
-                className={cn(
-                  "w-full flex items-center gap-3 px-4 py-3 rounded-2xl transition-all duration-300 group",
-                  mode === 'DAILY_CHALLENGE' && activeTab === 'chat'
-                    ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 shadow-lg shadow-emerald-500/5" 
-                    : "text-zinc-500 hover:bg-white/5 hover:text-zinc-200"
-                )}
-              >
-                <Sparkles className={cn("w-5 h-5 transition-colors", mode === 'DAILY_CHALLENGE' ? "text-emerald-400" : "group-hover:text-zinc-200")} />
-                <span className="font-bold text-sm">Günün Görevi</span>
-              </button>
-
-              <button
-                onClick={() => handleModeChange('TECH_NEWS')}
-                className={cn(
-                  "w-full flex items-center gap-3 px-4 py-3 rounded-2xl transition-all duration-300 group",
-                  mode === 'TECH_NEWS' && activeTab === 'chat'
-                    ? "bg-blue-500/10 text-blue-400 border border-blue-500/20 shadow-lg shadow-blue-500/5" 
-                    : "text-zinc-500 hover:bg-white/5 hover:text-zinc-200"
-                )}
-              >
-                <FileText className={cn("w-5 h-5 transition-colors", mode === 'TECH_NEWS' ? "text-blue-400" : "group-hover:text-zinc-200")} />
-                <span className="font-bold text-sm">Teknoloji Haberleri</span>
-              </button>
-
-              <button
-                onClick={() => handleModeChange('DEBUGGER')}
-                className={cn(
-                  "w-full flex items-center gap-3 px-4 py-3 rounded-2xl transition-all duration-300 group",
-                  mode === 'DEBUGGER' && activeTab === 'chat'
-                    ? "bg-blue-500/10 text-blue-400 border border-blue-500/20 shadow-lg shadow-blue-500/5" 
-                    : "text-zinc-500 hover:bg-white/5 hover:text-zinc-200"
-                )}
-              >
-                <Bug className={cn("w-5 h-5 transition-colors", mode === 'DEBUGGER' ? "text-blue-400" : "group-hover:text-zinc-200")} />
-                <span className="font-bold text-sm">Kod Debugger</span>
-              </button>
-
-              <button
-                onClick={() => handleModeChange('COMPONENT_LIB')}
-                className={cn(
-                  "w-full flex items-center gap-3 px-4 py-3 rounded-2xl transition-all duration-300 group",
-                  mode === 'COMPONENT_LIB' && activeTab === 'chat'
-                    ? "bg-zinc-500/10 text-zinc-200 border border-zinc-500/20 shadow-lg shadow-zinc-500/5" 
-                    : "text-zinc-500 hover:bg-white/5 hover:text-zinc-200"
-                )}
-              >
-                <Cpu className={cn("w-5 h-5 transition-colors", mode === 'COMPONENT_LIB' ? "text-zinc-200" : "group-hover:text-zinc-200")} />
-                <span className="font-bold text-sm">Bileşen Kütüphanesi</span>
-              </button>
+        <nav className="flex-1 px-3 lg:px-6 pb-8 space-y-8 overflow-y-auto custom-scrollbar">
+          {/* Main Tools */}
+          <div className="space-y-3">
+            <div className="hidden lg:block px-4 text-[10px] font-black uppercase tracking-[0.2em] text-zinc-600 mb-2">Akıllı Araçlar</div>
+            <div className="space-y-1.5">
+              {[
+                { id: 'PROJECT_GEN', icon: Lightbulb, label: 'Proje Üretici', color: 'emerald' },
+                { id: 'QUIZ', icon: Award, label: 'Bilgi Yarışması', color: 'amber' },
+                { id: 'SHOWCASE', icon: ImageIcon, label: 'Topluluk Vitrini', color: 'purple' },
+                { id: 'DEBUGGER', icon: Bug, label: 'Kod Debugger', color: 'blue' },
+              ].map((item) => (
+                <button
+                  key={item.id}
+                  onClick={() => item.id === 'QUIZ' ? handleStartQuiz() : handleModeChange(item.id as AppMode)}
+                  className={cn(
+                    "w-full flex items-center gap-4 px-3 lg:px-5 py-3.5 rounded-2xl transition-all duration-500 group/item relative overflow-hidden",
+                    mode === item.id && activeTab === 'chat'
+                      ? `bg-${item.color}-500/10 text-${item.color}-400 border border-${item.color}-500/20 shadow-lg shadow-${item.color}-500/5` 
+                      : "text-zinc-500 hover:bg-white/5 hover:text-zinc-200"
+                  )}
+                >
+                  <item.icon className={cn("w-5 h-5 transition-colors duration-500 shrink-0", mode === item.id ? `text-${item.color}-400` : "group-hover/item:text-zinc-200")} />
+                  <span className="font-bold text-sm hidden lg:block tracking-tight">{item.label}</span>
+                  {mode === item.id && (
+                    <motion.div layoutId="sidebar-active" className={cn("absolute left-0 w-1 h-6 rounded-full", `bg-${item.color}-500`)} />
+                  )}
+                </button>
+              ))}
             </div>
           </div>
 
-          {/* Gelişmiş Zeka */}
-          <div className="space-y-2">
-            <div className="px-4 text-[10px] font-black uppercase tracking-[0.2em] text-zinc-600">Gelişmiş Zeka</div>
-            <div className="space-y-1">
-              <button
-                onClick={() => handleModeChange('IMAGE_GEN')}
-                className={cn(
-                  "w-full flex items-center justify-between px-4 py-3 rounded-2xl transition-all duration-300 group",
-                  mode === 'IMAGE_GEN' && activeTab === 'chat'
-                    ? "bg-purple-500/10 text-purple-400 border border-purple-500/20 shadow-lg shadow-purple-500/5" 
-                    : "text-zinc-500 hover:bg-white/5 hover:text-zinc-200"
-                )}
-              >
-                <div className="flex items-center gap-3">
-                  <ImageIcon className={cn("w-5 h-5 transition-colors", mode === 'IMAGE_GEN' ? "text-purple-400" : "group-hover:text-zinc-200")} />
-                  <span className="font-bold text-sm">Görsel Üretici</span>
-                </div>
-                <span className="text-[8px] font-black px-1.5 py-0.5 rounded bg-purple-500/20 text-purple-400 uppercase">Limitli</span>
-              </button>
-
-              <button
-                onClick={() => handleModeChange('AI_OPTIMIZER')}
-                className={cn(
-                  "w-full flex items-center justify-between px-4 py-3 rounded-2xl transition-all duration-300 group",
-                  mode === 'AI_OPTIMIZER' && activeTab === 'chat'
-                    ? "bg-amber-500/10 text-amber-400 border border-amber-500/20 shadow-lg shadow-amber-500/5" 
-                    : "text-zinc-500 hover:bg-white/5 hover:text-zinc-200"
-                )}
-              >
-                <div className="flex items-center gap-3">
-                  <Zap className={cn("w-5 h-5 transition-colors", mode === 'AI_OPTIMIZER' ? "text-amber-400" : "group-hover:text-zinc-200")} />
-                  <span className="font-bold text-sm">Kod Optimizasyonu</span>
-                </div>
-                {!profile?.isPremium && <Key className="w-3 h-3 text-amber-500/40" />}
-              </button>
-
-              <button
-                onClick={() => handleModeChange('LIVE_VOICE')}
-                className={cn(
-                  "w-full flex items-center justify-between px-4 py-3 rounded-2xl transition-all duration-300 group",
-                  mode === 'LIVE_VOICE' && activeTab === 'chat'
-                    ? "bg-red-500/10 text-red-400 border border-red-500/20 shadow-lg shadow-red-500/5" 
-                    : "text-zinc-500 hover:bg-white/5 hover:text-zinc-200"
-                )}
-              >
-                <div className="flex items-center gap-3">
-                  <Radio className={cn("w-5 h-5 transition-colors", mode === 'LIVE_VOICE' ? "text-red-400 animate-pulse" : "group-hover:text-zinc-200")} />
-                  <span className="font-bold text-sm">Sesli Sohbet</span>
-                </div>
-                <span className="text-[8px] font-black px-1.5 py-0.5 rounded bg-red-500 text-white uppercase">Pro</span>
-              </button>
-            </div>
-          </div>
-
-          {/* Destek & Hesap */}
-          <div className="space-y-2">
-            <div className="px-4 text-[10px] font-black uppercase tracking-[0.2em] text-zinc-600">Hesap & Destek</div>
-            <div className="space-y-1">
-              <button
-                onClick={() => setActiveTab('profile')}
-                className={cn(
-                  "w-full flex items-center gap-3 px-4 py-3 rounded-2xl transition-all duration-300 group",
-                  activeTab === 'profile'
-                    ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20" 
-                    : "text-zinc-500 hover:bg-white/5 hover:text-zinc-200"
-                )}
-              >
-                <User className={cn("w-5 h-5 transition-colors", activeTab === 'profile' ? "text-emerald-400" : "group-hover:text-zinc-200")} />
-                <span className="font-bold text-sm">Profilim</span>
-              </button>
-
-              <button
-                onClick={() => handleModeChange('SUBSCRIPTION')}
-                className={cn(
-                  "w-full flex items-center gap-3 px-4 py-3 rounded-2xl transition-all duration-300 group",
-                  mode === 'SUBSCRIPTION'
-                    ? "bg-amber-500/10 text-amber-400 border border-amber-500/20" 
-                    : "text-zinc-500 hover:bg-white/5 hover:text-zinc-200"
-                )}
-              >
-                <CreditCard className={cn("w-5 h-5 transition-colors", mode === 'SUBSCRIPTION' ? "text-amber-400" : "group-hover:text-zinc-200")} />
-                <span className="font-bold text-sm">Üyelik & Planlar</span>
-              </button>
+          {/* AI Power */}
+          <div className="space-y-3">
+            <div className="hidden lg:block px-4 text-[10px] font-black uppercase tracking-[0.2em] text-zinc-600 mb-2">Premium Zeka</div>
+            <div className="space-y-1.5">
+              {[
+                { id: 'IMAGE_GEN', icon: ImageIcon, label: 'Görsel Üretici', color: 'purple', premium: true },
+                { id: 'AI_OPTIMIZER', icon: Zap, label: 'Optimizasyon', color: 'amber', premium: true },
+                { id: 'ROADMAP_GEN', icon: ChevronRight, label: 'Yol Haritası', color: 'blue', premium: true },
+                { id: 'LIVE_VOICE', icon: Mic, label: 'Sesli Sohbet', color: 'red', premium: true },
+              ].map((item) => (
+                <button
+                  key={item.id}
+                  onClick={() => handleModeChange(item.id as AppMode)}
+                  className={cn(
+                    "w-full flex items-center justify-between px-3 lg:px-5 py-3.5 rounded-2xl transition-all duration-500 group/item relative overflow-hidden",
+                    mode === item.id && activeTab === 'chat'
+                      ? `bg-${item.color}-500/10 text-${item.color}-400 border border-${item.color}-500/20 shadow-lg shadow-${item.color}-500/5` 
+                      : "text-zinc-500 hover:bg-white/5 hover:text-zinc-200"
+                  )}
+                >
+                  <div className="flex items-center gap-4">
+                    <item.icon className={cn("w-5 h-5 transition-colors duration-500 shrink-0", mode === item.id ? `text-${item.color}-400` : "group-hover/item:text-zinc-200")} />
+                    <span className="font-bold text-sm hidden lg:block tracking-tight">{item.label}</span>
+                  </div>
+                  {item.premium && profile?.subscriptionTier !== 'PRO' && (
+                    <Lock className="w-3.5 h-3.5 text-zinc-600 lg:block hidden opacity-40" />
+                  )}
+                  {mode === item.id && (
+                    <motion.div layoutId="sidebar-active" className={cn("absolute left-0 w-1 h-6 rounded-full", `bg-${item.color}-500`)} />
+                  )}
+                </button>
+              ))}
             </div>
           </div>
         </nav>
 
-        <div className="p-6 mt-auto">
-          <div className="glass-card rounded-[2rem] p-5 space-y-4">
+        <div className="p-6 lg:p-8 mt-auto">
+          <div className="glass-card rounded-[2.5rem] p-6 space-y-4 border-white/5">
             <div className="flex items-center gap-3">
-              <div className="w-8 h-8 bg-emerald-500/20 rounded-xl flex items-center justify-center">
-                <Info className="w-4 h-4 text-emerald-400" />
+              <div className="w-10 h-10 bg-emerald-500/10 rounded-2xl flex items-center justify-center">
+                <Info className="w-5 h-5 text-emerald-400" />
               </div>
-              <span className="text-[10px] font-black uppercase tracking-widest text-emerald-400">Bitlis Stüdyo</span>
+              <div className="hidden lg:block">
+                <span className="text-[10px] font-black uppercase tracking-widest text-emerald-400 block">Bitlis Stüdyo</span>
+                <span className="text-[9px] text-zinc-600 font-bold">Geleceği İnşa Et</span>
+              </div>
             </div>
-            <p className="text-[10px] text-zinc-500 leading-relaxed italic">
-              "Geleceğin teknolojisi Bitlis'in ruhuyla harmanlanıyor."
-            </p>
             <button 
               onClick={() => setShowChangelog(true)}
-              className="w-full py-2 bg-white/5 hover:bg-white/10 rounded-xl text-[9px] font-black uppercase tracking-widest text-zinc-400 transition-all"
+              className="w-full py-3 bg-white/5 hover:bg-white/10 rounded-2xl text-[10px] font-black uppercase tracking-widest text-zinc-400 transition-all duration-300 border border-white/5 hidden lg:block"
             >
-              Neler Yeni? v3.0
+              Yenilikler v4.5
             </button>
-            <div className="flex items-center justify-center gap-4 pt-2">
+            <div className="flex items-center justify-center gap-4 pt-2 lg:hidden">
               <button 
                 onClick={() => handleModeChange('PRIVACY')}
                 className="text-[9px] font-black uppercase tracking-widest text-zinc-600 hover:text-zinc-400 transition-colors"
@@ -1975,82 +2060,425 @@ export default function App() {
       </aside>
 
       {/* Main Content */}
-      <main className="flex-1 flex flex-col relative pb-32 lg:pb-0 min-w-0">
+      <main className="flex-1 flex flex-col relative pb-64 lg:pb-0 min-w-0">
         {/* Header */}
-        <header className="h-20 px-6 border-b border-white/5 flex items-center justify-between glass sticky top-0 z-30">
-          <div className="flex items-center gap-4 lg:hidden">
+        <header className="h-24 px-8 border-b border-white/5 flex items-center justify-between bg-black/20 backdrop-blur-xl sticky top-0 z-30">
+          <div className="flex items-center gap-6 lg:hidden">
             <button 
               onClick={() => setShowMobileMenu(true)}
-              className="p-2.5 bg-zinc-900 border border-white/10 rounded-2xl text-zinc-400 hover:text-white transition-all active:scale-95"
+              className="p-3 bg-zinc-900 border border-white/10 rounded-2xl text-zinc-400 hover:text-white transition-all active:scale-95 shadow-xl"
             >
               <Menu className="w-6 h-6" />
             </button>
-            <div className="flex items-center gap-2">
-              <Star className="text-emerald-500 w-6 h-6" />
-              <span className="font-display font-bold text-lg tracking-tight">DeneyapAI</span>
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-emerald-500 rounded-xl flex items-center justify-center shadow-lg shadow-emerald-500/20">
+                <Star className="text-white w-6 h-6" />
+              </div>
+              <h1 className="font-display font-bold text-xl tracking-tight text-white">DeneyapAI</h1>
             </div>
           </div>
           
-          <div className="hidden lg:flex items-center gap-3">
-            <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
-            <span className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-500">
-              {activeTab === 'chat' ? (
-                mode === 'PROJECT_GEN' ? 'Akıllı Proje Üretici' : 
-                mode === 'DEBUGGER' ? 'Kod Hata Ayıklayıcı' :
-                mode === 'AI_OPTIMIZER' ? 'AI Kod Optimizasyonu' :
-                mode === 'ROADMAP_GEN' ? 'Proje Yol Haritası' :
-                mode === 'COMPONENT_LIB' ? 'Bileşen Kütüphanesi' :
-                mode === 'COMMUNITY_PROJS' ? 'Topluluk Projeleri' :
-                mode === 'LIVE_VOICE' ? 'Canlı Sesli Sohbet' :
-                mode === 'IMAGE_GEN' ? 'AI Görsel Üretici' :
-                mode === 'DAILY_CHALLENGE' ? 'Günün Görevi' :
-                mode === 'TECH_NEWS' ? 'Teknoloji Haberleri' :
-                mode === 'PRIVACY' ? 'Gizlilik Politikası' :
-                'Uzman Mentor'
-              ) : activeTab === 'modes' ? (
-                mode === 'SUBSCRIPTION' ? 'Üyelik Planları' :
-                mode === 'FAQ' ? 'Sıkça Sorulan Sorular' : 
-                mode === 'PRIVACY' ? 'Gizlilik Politikası' : 'Hizmet Şartları'
-              ) : activeTab === 'history' ? 'Geçmiş Kayıtlar' : 'Kullanıcı Profili'}
-            </span>
+          <div className="hidden lg:flex items-center gap-6">
+            <div className="flex items-center gap-3 px-5 py-2.5 bg-white/5 border border-white/10 rounded-2xl">
+              <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse shadow-[0_0_8px_rgba(16,185,129,0.5)]" />
+              <span className="text-xs font-bold text-zinc-300 tracking-tight">Sistem Çevrimiçi</span>
+            </div>
+            
+            <div className="h-8 w-px bg-white/5" />
+            
+            <div className="flex items-center gap-4">
+              <button 
+                onClick={() => setActiveTab('chat')}
+                className={cn(
+                  "px-6 py-2.5 rounded-2xl text-xs font-black uppercase tracking-widest transition-all duration-300",
+                  activeTab === 'chat' ? "bg-white text-black shadow-xl scale-105" : "text-zinc-500 hover:text-zinc-300"
+                )}
+              >
+                Zeka
+              </button>
+              <button 
+                onClick={() => setActiveTab('history')}
+                className={cn(
+                  "px-6 py-2.5 rounded-2xl text-xs font-black uppercase tracking-widest transition-all duration-300",
+                  activeTab === 'history' ? "bg-white text-black shadow-xl scale-105" : "text-zinc-500 hover:text-zinc-300"
+                )}
+              >
+                Geçmiş
+              </button>
+            </div>
           </div>
 
           {profile && (
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-6">
               {profile?.subscriptionTier !== 'PRO' && (
                 <button 
                   onClick={() => handleModeChange('SUBSCRIPTION')}
-                  className="hidden md:flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-amber-500 to-orange-500 text-black text-[10px] font-black uppercase tracking-widest rounded-xl shadow-lg shadow-amber-500/20 hover:scale-105 transition-all active:scale-95"
+                  className="hidden md:flex items-center gap-3 px-6 py-3 bg-gradient-to-r from-amber-400 to-orange-500 text-black text-xs font-black uppercase tracking-widest rounded-2xl shadow-xl shadow-amber-500/20 hover:scale-105 transition-all active:scale-95"
                 >
-                  <Zap className="w-3 h-3" />
+                  <Zap className="w-4 h-4" />
                   Pro'ya Geç
                 </button>
               )}
               <div className="hidden sm:flex flex-col items-end">
                 <div className="flex items-center gap-2">
-                  <span className="text-xs font-bold text-white">{profile.name}</span>
+                  <span className="text-sm font-bold text-white tracking-tight">{profile.name}</span>
                   {profile.subscriptionTier === 'PRO' && (
-                    <span className="bg-amber-500/10 text-amber-500 text-[8px] font-black px-1.5 py-0.5 rounded border border-amber-500/20 uppercase tracking-tighter">Pro</span>
+                    <span className="bg-gradient-to-r from-amber-400 to-orange-500 text-black text-[8px] font-black px-2 py-0.5 rounded-full uppercase tracking-tighter shadow-lg shadow-amber-500/20">Pro</span>
                   )}
                 </div>
-                <div className={cn("text-[9px] font-black uppercase tracking-widest flex items-center gap-1", badge?.color)}>
+                <div className={cn("text-[9px] font-black uppercase tracking-widest flex items-center gap-1.5", badge?.color)}>
+                  <div className={cn("w-1 h-1 rounded-full", badge?.color.replace('text-', 'bg-'))} />
                   {badge?.name}
                 </div>
               </div>
               <button 
                 onClick={() => setActiveTab('profile')}
-                className="w-10 h-10 bg-zinc-900 border border-white/10 rounded-2xl flex items-center justify-center text-emerald-400 hover:border-emerald-500/50 transition-all active:scale-95 shadow-xl"
+                className="w-12 h-12 bg-zinc-900 border border-white/10 rounded-2xl flex items-center justify-center text-emerald-400 hover:border-emerald-500/50 hover:bg-zinc-800 transition-all duration-300 active:scale-95 shadow-2xl group"
               >
-                <User className="w-5 h-5" />
+                <User className="w-6 h-6 group-hover:scale-110 transition-transform" />
               </button>
             </div>
           )}
         </header>
 
         {/* Tab Content */}
-        <div className="flex-1 overflow-y-auto">
+        <div className="flex-1 overflow-y-auto custom-scrollbar">
           {activeTab === 'chat' ? (
-            mode === 'LIVE_VOICE' ? (
+            ['IMAGE_GEN', 'DEBUGGER', 'PROJECT_GEN', 'DAILY_CHALLENGE', 'TECH_NEWS', 'QUIZ', 'SHOWCASE'].includes(mode) ? (
+              <div className="p-4 md:p-8 max-w-6xl mx-auto space-y-8 pb-64">
+                {mode === 'QUIZ' && (
+                  <div className="space-y-8">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-4">
+                        <div className="w-12 h-12 bg-amber-500/10 rounded-2xl flex items-center justify-center">
+                          <Zap className="text-amber-400 w-6 h-6" />
+                        </div>
+                        <div>
+                          <h2 className="text-3xl font-display font-bold">Bilgi Yarışması</h2>
+                          <p className="text-zinc-500 text-sm">Teknoloji bilginizi test edin ve puan kazanın!</p>
+                        </div>
+                      </div>
+                      <div className="px-6 py-3 bg-amber-500/10 border border-amber-500/20 rounded-2xl">
+                        <span className="text-xl font-bold text-amber-400">{quizScore} / {quizQuestions.length}</span>
+                      </div>
+                    </div>
+
+                    {isLoading ? (
+                      <div className="py-32 text-center glass-card rounded-[2.5rem]">
+                        <RefreshCw className="w-12 h-12 text-amber-500 animate-spin mx-auto mb-4" />
+                        <p className="text-zinc-500 font-bold uppercase tracking-widest text-xs">Sorular Hazırlanıyor...</p>
+                      </div>
+                    ) : showQuizResult ? (
+                      <motion.div 
+                        initial={{ opacity: 0, scale: 0.9 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        className="glass-card rounded-[2.5rem] p-12 text-center space-y-8"
+                      >
+                        <div className="w-24 h-24 bg-amber-500/20 rounded-full flex items-center justify-center mx-auto">
+                          <Award className="w-12 h-12 text-amber-500" />
+                        </div>
+                        <div>
+                          <h3 className="text-3xl font-display font-bold mb-2">Tebrikler!</h3>
+                          <p className="text-zinc-400">Yarışmayı tamamladınız. Toplam puanınız:</p>
+                          <div className="text-6xl font-black text-amber-500 mt-4">{quizScore * 20}</div>
+                        </div>
+                        <button 
+                          onClick={handleStartQuiz}
+                          className="px-10 py-4 bg-amber-500 hover:bg-amber-400 text-black font-black rounded-2xl transition-all shadow-xl shadow-amber-500/20 uppercase tracking-widest text-xs"
+                        >
+                          Tekrar Yarış
+                        </button>
+                      </motion.div>
+                    ) : quizQuestions.length > 0 ? (
+                      <motion.div 
+                        key={currentQuizIdx}
+                        initial={{ opacity: 0, x: 20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        className="glass-card rounded-[2.5rem] p-8 md:p-12 space-y-8"
+                      >
+                        <div className="space-y-4">
+                          <div className="flex items-center justify-between">
+                            <span className="text-[10px] font-black uppercase tracking-widest text-amber-500">Soru {currentQuizIdx + 1} / {quizQuestions.length}</span>
+                            <span className="text-[10px] font-black uppercase tracking-widest text-zinc-500">İlerleme: %{Math.round(((currentQuizIdx) / quizQuestions.length) * 100)}</span>
+                          </div>
+                          <div className="h-1.5 w-full bg-zinc-800 rounded-full overflow-hidden">
+                            <motion.div 
+                              initial={{ width: 0 }}
+                              animate={{ width: `${((currentQuizIdx) / quizQuestions.length) * 100}%` }}
+                              className="h-full bg-amber-500"
+                            />
+                          </div>
+                          <h3 className="text-2xl font-display font-bold leading-tight">{quizQuestions[currentQuizIdx].question}</h3>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          {quizQuestions[currentQuizIdx].options.map((option, i) => (
+                            <button
+                              key={i}
+                              onClick={() => handleQuizAnswer(i)}
+                              className="p-6 bg-zinc-900/50 border border-white/5 rounded-2xl text-left hover:bg-amber-500/10 hover:border-amber-500/30 transition-all group"
+                            >
+                              <div className="flex items-center gap-4">
+                                <div className="w-8 h-8 rounded-lg bg-zinc-800 flex items-center justify-center text-xs font-black group-hover:bg-amber-500 group-hover:text-black transition-colors">
+                                  {String.fromCharCode(65 + i)}
+                                </div>
+                                <span className="text-zinc-300 font-medium group-hover:text-white">{option}</span>
+                              </div>
+                            </button>
+                          ))}
+                        </div>
+                      </motion.div>
+                    ) : (
+                      <div className="py-32 text-center glass-card rounded-[2.5rem]">
+                        <button 
+                          onClick={handleStartQuiz}
+                          className="px-10 py-4 bg-amber-500 hover:bg-amber-400 text-black font-black rounded-2xl transition-all shadow-xl shadow-amber-500/20 uppercase tracking-widest text-xs"
+                        >
+                          Yarışmayı Başlat
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {mode === 'SHOWCASE' && (
+                  <div className="space-y-8">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-4">
+                        <div className="w-12 h-12 bg-purple-500/10 rounded-2xl flex items-center justify-center">
+                          <ImageIcon className="text-purple-400 w-6 h-6" />
+                        </div>
+                        <div>
+                          <h2 className="text-3xl font-display font-bold">Topluluk Vitrini</h2>
+                          <p className="text-zinc-500 text-sm">Diğer Deneyapçıların neler yaptığını keşfedin.</p>
+                        </div>
+                      </div>
+                      <button 
+                        onClick={() => setShowShowcaseModal(true)}
+                        className="px-6 py-3 bg-purple-500 hover:bg-purple-400 text-white font-black rounded-2xl transition-all shadow-xl shadow-purple-500/20 uppercase tracking-widest text-[10px]"
+                      >
+                        Proje Paylaş
+                      </button>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                      {showcaseProjects.map((project) => (
+                        <motion.div 
+                          key={project.id}
+                          whileHover={{ y: -5 }}
+                          className="glass-card rounded-[2rem] p-8 space-y-6 group relative overflow-hidden"
+                        >
+                          <div className="absolute top-0 right-0 p-4">
+                            <div className="px-3 py-1 bg-purple-500/10 border border-purple-500/20 rounded-full text-[8px] font-black uppercase tracking-widest text-purple-400">
+                              {project.category}
+                            </div>
+                          </div>
+                          <div className="space-y-2">
+                            <h3 className="text-xl font-display font-bold text-white group-hover:text-purple-400 transition-colors">{project.title}</h3>
+                            <p className="text-zinc-500 text-[10px] font-black uppercase tracking-widest">Yazar: {project.author}</p>
+                          </div>
+                          <p className="text-zinc-400 text-sm leading-relaxed line-clamp-3">{project.description}</p>
+                          <div className="flex items-center justify-between pt-6 border-t border-white/5">
+                            <button 
+                              onClick={() => handleLikeProject(project.id)}
+                              className="flex items-center gap-2 text-zinc-500 hover:text-red-400 transition-colors group/like"
+                            >
+                              <Star className="w-4 h-4 group-hover/like:fill-red-400" />
+                              <span className="text-xs font-bold">{project.likes} Beğeni</span>
+                            </button>
+                            <button 
+                              onClick={() => setSelectedProject(project)}
+                              className="text-[10px] font-black uppercase tracking-widest text-purple-400 hover:text-purple-300 transition-colors"
+                            >
+                              Detayları Gör →
+                            </button>
+                          </div>
+                        </motion.div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {mode === 'IMAGE_GEN' && (
+                  <div className="space-y-8">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h2 className="text-3xl font-display font-bold">AI Görsel Üretici</h2>
+                        <p className="text-zinc-500 text-sm">Hayalindeki teknolojik tasarımı gerçeğe dönüştür.</p>
+                      </div>
+                      <div className="px-4 py-2 bg-purple-500/10 border border-purple-500/20 rounded-xl">
+                        <span className="text-[10px] font-black uppercase tracking-widest text-purple-400">
+                          Kalan Hak: {profile?.subscriptionTier === 'PRO' ? 'Sınırsız' : profile?.subscriptionTier === 'BASIC' ? 25 - ((profile?.stats as any)?.imagesGenerated || 0) : 2 - ((profile?.stats as any)?.imagesGenerated || 0)}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                      {generatedImages.length === 0 ? (
+                        <div className="col-span-full py-20 text-center glass-card rounded-[2.5rem] border-dashed border-white/5">
+                          <ImageIcon className="w-12 h-12 text-zinc-700 mx-auto mb-4" />
+                          <p className="text-zinc-500 text-sm">Henüz bir görsel üretmedin. Aşağıdaki kutuya hayalini yaz!</p>
+                        </div>
+                      ) : (
+                        generatedImages.map((img, i) => (
+                          <motion.div 
+                            key={i}
+                            initial={{ opacity: 0, scale: 0.9 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            className="glass-card rounded-[2rem] overflow-hidden group relative"
+                          >
+                            <img src={img.url} alt={img.prompt} className="w-full aspect-square object-cover transition-transform group-hover:scale-110" referrerPolicy="no-referrer" />
+                            <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col justify-end p-6">
+                              <p className="text-white text-xs font-medium line-clamp-2 mb-4">{img.prompt}</p>
+                              <a href={img.url} download={`deneyapai-${i}.png`} className="w-full py-2 bg-white text-black text-center rounded-xl text-[10px] font-black uppercase tracking-widest">İndir</a>
+                            </div>
+                          </motion.div>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {mode === 'DEBUGGER' && (
+                  <div className="space-y-8">
+                    <div className="flex items-center gap-4">
+                      <div className="w-12 h-12 bg-blue-500/10 rounded-2xl flex items-center justify-center">
+                        <Bug className="text-blue-400 w-6 h-6" />
+                      </div>
+                      <div>
+                        <h2 className="text-3xl font-display font-bold">Hata Ayıklayıcı</h2>
+                        <p className="text-zinc-500 text-sm">Kodundaki hataları bulalım ve birlikte düzeltelim.</p>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                      <div className="space-y-4">
+                        <h4 className="text-[10px] font-black uppercase tracking-widest text-zinc-500 ml-2">Hatalı Kodun</h4>
+                        <div className="glass-card rounded-[2rem] p-6 min-h-[300px] bg-zinc-900/50 border-white/5">
+                          <pre className="text-sm font-mono text-zinc-400 whitespace-pre-wrap">
+                            {messages.filter(m => m.role === 'user').pop()?.content || "// Kodunu aşağıya yapıştır..."}
+                          </pre>
+                        </div>
+                      </div>
+                      <div className="space-y-4">
+                        <h4 className="text-[10px] font-black uppercase tracking-widest text-emerald-500 ml-2">Çözüm ve Öneriler</h4>
+                        <div className="glass-card rounded-[2rem] p-6 min-h-[300px] border-emerald-500/20">
+                          <div className="markdown-body text-sm">
+                            <Markdown>
+                              {messages.filter(m => m.role === 'assistant').pop()?.content || "Henüz bir analiz yapılmadı."}
+                            </Markdown>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {mode === 'PROJECT_GEN' && (
+                  <div className="space-y-8">
+                    <div className="flex items-center gap-4">
+                      <div className="w-12 h-12 bg-emerald-500/10 rounded-2xl flex items-center justify-center">
+                        <Lightbulb className="text-emerald-400 w-6 h-6" />
+                      </div>
+                      <div>
+                        <h2 className="text-3xl font-display font-bold">Proje Üretici</h2>
+                        <p className="text-zinc-500 text-sm">Malzemelerini yaz, sana en uygun projeyi tasarlayalım.</p>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 gap-6">
+                      {messages.filter(m => m.role === 'assistant').length === 0 ? (
+                        <div className="py-20 text-center glass-card rounded-[2.5rem] border-dashed border-white/5">
+                          <Sparkles className="w-12 h-12 text-emerald-500/20 mx-auto mb-4" />
+                          <p className="text-zinc-500 text-sm">Hangi malzemelerin var? Örn: "Arduino, LDR, Buzzer"</p>
+                        </div>
+                      ) : (
+                        <div className="glass-card rounded-[2.5rem] p-8 md:p-12">
+                          <div className="markdown-body">
+                            <Markdown>
+                              {messages.filter(m => m.role === 'assistant').pop()?.content || ""}
+                            </Markdown>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {mode === 'DAILY_CHALLENGE' && (
+                  <div className="space-y-8">
+                    <div className="flex items-center gap-4">
+                      <div className="w-12 h-12 bg-amber-500/10 rounded-2xl flex items-center justify-center">
+                        <Sparkles className="text-amber-400 w-6 h-6" />
+                      </div>
+                      <div>
+                        <h2 className="text-3xl font-display font-bold">Günün Görevi</h2>
+                        <p className="text-zinc-500 text-sm">Her gün yeni bir meydan okuma, yeni bir başarı!</p>
+                      </div>
+                    </div>
+
+                    <div className="max-w-2xl mx-auto">
+                      {messages.filter(m => m.role === 'assistant').length === 0 ? (
+                        <div className="glass-card rounded-[2.5rem] p-12 text-center space-y-6">
+                          <div className="w-20 h-20 bg-amber-500/10 rounded-full flex items-center justify-center mx-auto">
+                            <Zap className="w-10 h-10 text-amber-500" />
+                          </div>
+                          <h3 className="text-2xl font-display font-bold">Bugünkü Görevini Almaya Hazır Mısın?</h3>
+                          <p className="text-zinc-500">Aşağıdaki butona basarak veya "Günün görevini ver" yazarak başlayabilirsin.</p>
+                          <button 
+                            onClick={() => { setInput('Günün görevini ver'); handleSubmit({ preventDefault: () => {} } as any); }}
+                            className="bg-amber-500 text-black font-black px-8 py-4 rounded-2xl uppercase tracking-widest text-xs shadow-xl shadow-amber-500/20"
+                          >
+                            Görevi Başlat
+                          </button>
+                        </div>
+                      ) : (
+                        <motion.div 
+                          initial={{ opacity: 0, y: 20 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          className="glass-card rounded-[2.5rem] p-8 md:p-12 border-amber-500/20"
+                        >
+                          <div className="markdown-body">
+                            <Markdown>
+                              {messages.filter(m => m.role === 'assistant').pop()?.content || ""}
+                            </Markdown>
+                          </div>
+                        </motion.div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {mode === 'TECH_NEWS' && (
+                  <div className="space-y-8">
+                    <div className="flex items-center gap-4">
+                      <div className="w-12 h-12 bg-blue-500/10 rounded-2xl flex items-center justify-center">
+                        <FileText className="text-blue-400 w-6 h-6" />
+                      </div>
+                      <div>
+                        <h2 className="text-3xl font-display font-bold">Teknoloji Haberleri</h2>
+                        <p className="text-zinc-500 text-sm">Dünyadan ve Türkiye'den en güncel teknoloji özetleri.</p>
+                      </div>
+                    </div>
+
+                    <div className="space-y-6">
+                      {messages.filter(m => m.role === 'assistant').length === 0 ? (
+                        <div className="py-20 text-center glass-card rounded-[2.5rem] border-dashed border-white/5">
+                          <Radio className="w-12 h-12 text-blue-500/20 mx-auto mb-4" />
+                          <p className="text-zinc-500 text-sm">Gündemi yakalamak için "Son haberleri getir" yazabilirsin.</p>
+                        </div>
+                      ) : (
+                        <div className="glass-card rounded-[2.5rem] p-8 md:p-12">
+                          <div className="markdown-body">
+                            <Markdown>
+                              {messages.filter(m => m.role === 'assistant').pop()?.content || ""}
+                            </Markdown>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            ) : mode === 'LIVE_VOICE' ? (
               <div className="flex flex-col items-center justify-center h-full text-zinc-500 gap-4">
                 <Radio className="w-12 h-12 animate-pulse text-red-500/50" />
                 <p className="text-sm font-medium">Canlı Sesli Sohbet Modu Aktif</p>
@@ -2062,7 +2490,7 @@ export default function App() {
                 </button>
               </div>
             ) : (
-              <div className="p-4 md:p-8 space-y-6">
+              <div className="p-4 md:p-8 space-y-6 pb-64">
                 {showDailyTip && (
                   <motion.div 
                     initial={{ opacity: 0, y: -20 }}
@@ -2099,35 +2527,42 @@ export default function App() {
                 {messages.map((msg, idx) => (
                   <motion.div
                     key={idx}
-                    initial={{ opacity: 0, y: 20, scale: 0.95 }}
+                    initial={{ opacity: 0, y: 20, scale: 0.98 }}
                     animate={{ opacity: 1, y: 0, scale: 1 }}
                     className={cn(
-                      "flex w-full",
+                      "flex w-full mb-8",
                       msg.role === 'user' ? "justify-end" : "justify-start"
                     )}
                   >
                     <div className={cn(
-                      "max-w-[90%] md:max-w-[80%] rounded-[2rem] p-5 md:p-8 shadow-2xl relative group transition-all",
+                      "max-w-[90%] md:max-w-[85%] rounded-[2.5rem] p-6 md:p-10 shadow-2xl relative group transition-all duration-500",
                       msg.role === 'user' 
-                        ? "bg-zinc-100 text-zinc-900 rounded-tr-none" 
-                        : "glass-card rounded-tl-none"
+                        ? "bg-white text-black rounded-tr-none shadow-white/5" 
+                        : "glass-card rounded-tl-none border-white/5"
                     )}>
                       {msg.role === 'assistant' && (
-                        <div className="flex items-center gap-3 mb-4">
-                          <div className="w-8 h-8 bg-emerald-500 rounded-xl flex items-center justify-center shadow-lg shadow-emerald-500/20">
-                            <Cpu className="w-4 h-4 text-white" />
+                        <div className="flex items-center gap-4 mb-6">
+                          <div className="w-10 h-10 bg-emerald-500 rounded-2xl flex items-center justify-center shadow-xl shadow-emerald-500/20">
+                            <Cpu className="w-5 h-5 text-white" />
                           </div>
                           <div>
                             <span className="text-[10px] font-black uppercase tracking-[0.2em] text-emerald-400 block">DeneyapAI Mentor</span>
-                            <span className="text-[8px] text-zinc-500 font-bold uppercase tracking-widest">Yapay Zeka Yanıtı</span>
+                            <span className="text-[9px] text-zinc-500 font-bold uppercase tracking-widest">Sistem v4.5 • {new Date(msg.timestamp).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })}</span>
                           </div>
+                        </div>
+                      )}
+
+                      {msg.role === 'user' && (
+                        <div className="flex items-center gap-3 mb-4 opacity-40">
+                          <User className="w-4 h-4" />
+                          <span className="text-[9px] font-black uppercase tracking-widest">Siz • {new Date(msg.timestamp).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })}</span>
                         </div>
                       )}
                       
                       {msg.role === 'assistant' && (
                         <button 
                           onClick={() => handleCopy(msg.content, idx)}
-                          className="absolute top-6 right-6 p-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-zinc-500 hover:text-white opacity-0 group-hover:opacity-100 transition-all"
+                          className="absolute top-8 right-8 p-2.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-zinc-500 hover:text-white opacity-0 group-hover:opacity-100 transition-all duration-300"
                         >
                           {copiedIdx === idx ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
                         </button>
@@ -2135,17 +2570,32 @@ export default function App() {
 
                       <div className={cn(
                         "prose prose-invert max-w-none",
-                        msg.role === 'assistant' ? "markdown-body" : "text-sm md:text-base font-semibold leading-relaxed"
+                        msg.role === 'assistant' ? "markdown-body text-zinc-300" : "text-base md:text-lg font-bold leading-relaxed tracking-tight"
                       )}>
                         {msg.role === 'assistant' ? (
                           msg.content.startsWith('data:image') ? (
                             <div className="space-y-6">
-                              <img 
-                                src={msg.content} 
-                                alt="AI Generated" 
-                                className="w-full rounded-3xl shadow-2xl border border-white/10"
-                                referrerPolicy="no-referrer"
-                              />
+                              <div className="relative group/img overflow-hidden rounded-3xl border border-white/10 shadow-2xl">
+                                <img 
+                                  src={msg.content} 
+                                  alt="AI Generated" 
+                                  className="w-full h-auto transition-transform duration-700 group-hover/img:scale-105"
+                                  referrerPolicy="no-referrer"
+                                />
+                                <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover/img:opacity-100 transition-opacity duration-500 flex items-end p-6">
+                                  <button 
+                                    onClick={() => {
+                                      const link = document.createElement('a');
+                                      link.href = msg.content;
+                                      link.download = `deneyapai-${Date.now()}.png`;
+                                      link.click();
+                                    }}
+                                    className="px-6 py-2.5 bg-white text-black rounded-xl text-[10px] font-black uppercase tracking-widest shadow-xl hover:bg-zinc-200 transition-all"
+                                  >
+                                    Görseli İndir
+                                  </button>
+                                </div>
+                              </div>
                               <div className="flex items-center gap-2 px-4 py-2 bg-purple-500/10 border border-purple-500/20 rounded-xl w-fit">
                                 <ImageIcon className="w-3 h-3 text-purple-400" />
                                 <p className="text-[10px] text-purple-400 font-black uppercase tracking-widest">AI Görsel Üretimi Tamamlandı</p>
@@ -2155,7 +2605,7 @@ export default function App() {
                             <Markdown>{msg.content}</Markdown>
                           )
                         ) : (
-                          msg.content
+                          <p className="whitespace-pre-wrap">{msg.content}</p>
                         )}
                       </div>
                     </div>
@@ -2694,44 +3144,127 @@ export default function App() {
                 </div>
 
                 {/* Stats Grid */}
-                <div className="lg:col-span-8 grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div className="glass-card rounded-[2.5rem] p-8 flex flex-col justify-between group">
-                    <div className="w-12 h-12 bg-emerald-500/10 rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
-                      <MessageSquare className="w-6 h-6 text-emerald-400" />
+                <div className="lg:col-span-8 space-y-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="glass-card rounded-[2.5rem] p-8 flex flex-col justify-between group">
+                      <div className="w-12 h-12 bg-emerald-500/10 rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
+                        <MessageSquare className="w-6 h-6 text-emerald-400" />
+                      </div>
+                      <div>
+                        <div className="text-4xl font-display font-bold text-white mb-1">{profile?.totalQuestions}</div>
+                        <div className="text-xs font-black uppercase tracking-widest text-zinc-500">Toplam Soru</div>
+                      </div>
                     </div>
-                    <div>
-                      <div className="text-4xl font-display font-bold text-white mb-1">{profile?.totalQuestions}</div>
-                      <div className="text-xs font-black uppercase tracking-widest text-zinc-500">Toplam Soru</div>
+
+                    <div className="glass-card rounded-[2.5rem] p-8 flex flex-col justify-between group">
+                      <div className="w-12 h-12 bg-amber-500/10 rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
+                        <Zap className="w-6 h-6 text-amber-400" />
+                      </div>
+                      <div>
+                        <div className="text-4xl font-display font-bold text-white mb-1">{profile?.stats?.quizScore || 0}</div>
+                        <div className="text-xs font-black uppercase tracking-widest text-zinc-500">Quiz Puanı ({profile?.stats?.quizCount || 0} Quiz)</div>
+                      </div>
                     </div>
                   </div>
 
-                  <div className="glass-card rounded-[2.5rem] p-8 flex flex-col justify-between group">
-                    <div className="w-12 h-12 bg-purple-500/10 rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
-                      <ImageIcon className="w-6 h-6 text-purple-400" />
+                  {/* Progress Chart */}
+                  <div className="glass-card rounded-[2.5rem] p-8 md:p-12 space-y-8">
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-2xl font-display font-bold">İlerleme Analizi</h3>
+                      <div className="flex items-center gap-4">
+                        <div className="flex items-center gap-2">
+                          <div className="w-3 h-3 bg-emerald-500 rounded-full" />
+                          <span className="text-[10px] font-black uppercase tracking-widest text-zinc-500">Aktivite</span>
+                        </div>
+                      </div>
                     </div>
-                    <div>
-                      <div className="text-4xl font-display font-bold text-white mb-1">{(profile?.stats as any)?.imagesGenerated || 0}</div>
-                      <div className="text-xs font-black uppercase tracking-widest text-zinc-500">Üretilen Görsel</div>
+                    
+                    <div className="h-[300px] w-full">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <AreaChart
+                          data={[
+                            { name: 'Pzt', value: 4 },
+                            { name: 'Sal', value: 7 },
+                            { name: 'Çar', value: 5 },
+                            { name: 'Per', value: 9 },
+                            { name: 'Cum', value: 12 },
+                            { name: 'Cmt', value: 8 },
+                            { name: 'Paz', value: 15 },
+                          ]}
+                          margin={{ top: 10, right: 10, left: -20, bottom: 0 }}
+                        >
+                          <defs>
+                            <linearGradient id="colorValue" x1="0" y1="0" x2="0" y2="1">
+                              <stop offset="5%" stopColor="#10b981" stopOpacity={0.3}/>
+                              <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
+                            </linearGradient>
+                          </defs>
+                          <CartesianGrid strokeDasharray="3 3" stroke="#ffffff05" vertical={false} />
+                          <XAxis 
+                            dataKey="name" 
+                            stroke="#ffffff20" 
+                            fontSize={10} 
+                            tickLine={false}
+                            axisLine={false}
+                          />
+                          <YAxis 
+                            stroke="#ffffff20" 
+                            fontSize={10} 
+                            tickLine={false}
+                            axisLine={false}
+                          />
+                          <Tooltip 
+                            contentStyle={{ 
+                              backgroundColor: '#09090b', 
+                              border: '1px solid #ffffff10',
+                              borderRadius: '12px',
+                              fontSize: '12px',
+                              color: '#fff'
+                            }}
+                            itemStyle={{ color: '#10b981' }}
+                          />
+                          <Area 
+                            type="monotone" 
+                            dataKey="value" 
+                            stroke="#10b981" 
+                            strokeWidth={3}
+                            fillOpacity={1} 
+                            fill="url(#colorValue)" 
+                          />
+                        </AreaChart>
+                      </ResponsiveContainer>
                     </div>
                   </div>
 
-                  <div className="glass-card rounded-[2.5rem] p-8 flex flex-col justify-between group">
-                    <div className="w-12 h-12 bg-blue-500/10 rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
-                      <Bug className="w-6 h-6 text-blue-400" />
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div className="glass-card rounded-[2.5rem] p-8 flex flex-col justify-between group">
+                      <div className="w-12 h-12 bg-purple-500/10 rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
+                        <ImageIcon className="w-6 h-6 text-purple-400" />
+                      </div>
+                      <div>
+                        <div className="text-4xl font-display font-bold text-white mb-1">{profile?.stats?.imagesGenerated || 0}</div>
+                        <div className="text-xs font-black uppercase tracking-widest text-zinc-500">Görsel</div>
+                      </div>
                     </div>
-                    <div>
-                      <div className="text-4xl font-display font-bold text-white mb-1">{(profile?.stats as any)?.bugsFixed || 0}</div>
-                      <div className="text-xs font-black uppercase tracking-widest text-zinc-500">Çözülen Hata</div>
-                    </div>
-                  </div>
 
-                  <div className="glass-card rounded-[2.5rem] p-8 flex flex-col justify-between group">
-                    <div className="w-12 h-12 bg-amber-500/10 rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
-                      <Zap className="w-6 h-6 text-amber-400" />
+                    <div className="glass-card rounded-[2.5rem] p-8 flex flex-col justify-between group">
+                      <div className="w-12 h-12 bg-blue-500/10 rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
+                        <Bug className="w-6 h-6 text-blue-400" />
+                      </div>
+                      <div>
+                        <div className="text-4xl font-display font-bold text-white mb-1">{profile?.stats?.bugsFixed || 0}</div>
+                        <div className="text-xs font-black uppercase tracking-widest text-zinc-500">Hata</div>
+                      </div>
                     </div>
-                    <div>
-                      <div className="text-4xl font-display font-bold text-white mb-1">{(profile?.stats as any)?.codeOptimized || 0}</div>
-                      <div className="text-xs font-black uppercase tracking-widest text-zinc-500">Kod Optimizasyonu</div>
+
+                    <div className="glass-card rounded-[2.5rem] p-8 flex flex-col justify-between group">
+                      <div className="w-12 h-12 bg-indigo-500/10 rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
+                        <Github className="w-6 h-6 text-indigo-400" />
+                      </div>
+                      <div>
+                        <div className="text-4xl font-display font-bold text-white mb-1">{profile?.stats?.projectsShared || 0}</div>
+                        <div className="text-xs font-black uppercase tracking-widest text-zinc-500">Vitrinde</div>
+                      </div>
                     </div>
                   </div>
 
@@ -2742,7 +3275,7 @@ export default function App() {
                       {[
                         { icon: Star, label: 'Yeni Fatih', active: true },
                         { icon: Zap, label: 'Hızlı Kodcu', active: (profile?.totalQuestions || 0) > 10 },
-                        { icon: Award, label: 'Hata Avcısı', active: ((profile?.stats as any)?.bugsFixed || 0) > 5 },
+                        { icon: Award, label: 'Hata Avcısı', active: (profile?.stats?.bugsFixed || 0) > 5 },
                         { icon: ShieldCheck, label: 'Güvenli Liman', active: profile?.twoFAEnabled }
                       ].map((ach, i) => (
                         <div key={i} className={cn(
@@ -2763,24 +3296,24 @@ export default function App() {
 
         {/* Input Area (Only in Chat Tab) */}
         {activeTab === 'chat' && !['LIVE_VOICE', 'SUBSCRIPTION', 'FAQ', 'TERMS'].includes(mode) && (
-          <div className="p-4 md:p-8 pt-0 fixed bottom-0 left-0 right-0 lg:relative bg-zinc-950/80 backdrop-blur-lg lg:bg-transparent z-20">
+          <div className="p-4 md:p-10 pt-0 fixed bottom-0 left-0 right-0 lg:relative bg-gradient-to-t from-black via-black/95 to-transparent lg:bg-transparent z-20">
             {isLimitReached ? (
               <motion.div 
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="max-w-4xl mx-auto glass-card border-amber-500/20 rounded-[2.5rem] p-10 text-center mb-8"
+                className="max-w-4xl mx-auto glass-card border-amber-500/20 rounded-[3rem] p-12 text-center mb-8"
               >
-                <div className="w-16 h-16 bg-amber-500/10 rounded-2xl flex items-center justify-center mx-auto mb-6">
-                  <Zap className="w-8 h-8 text-amber-500" />
+                <div className="w-20 h-20 bg-amber-500/10 rounded-3xl flex items-center justify-center mx-auto mb-8 shadow-inner">
+                  <Zap className="w-10 h-10 text-amber-500" />
                 </div>
-                <h3 className="text-2xl font-display font-bold text-white mb-3">Günlük Limitine Ulaştın!</h3>
-                <p className="text-zinc-400 text-sm md:text-base leading-relaxed max-w-lg mx-auto mb-8">
+                <h3 className="text-3xl font-display font-bold text-white mb-4">Günlük Limitine Ulaştın!</h3>
+                <p className="text-zinc-400 text-base leading-relaxed max-w-lg mx-auto mb-10">
                   Geleceğin teknoloji fatihi, bugünlük zeka kapasitemizi doldurdun! API maliyetlerini dengelemek için sınırlı kontenjan kullanıyoruz.
                 </p>
                 {profile?.subscriptionTier !== 'PRO' && (
                   <button 
                     onClick={() => handleModeChange('SUBSCRIPTION')}
-                    className="bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-black font-black px-10 py-4 rounded-2xl transition-all shadow-xl shadow-amber-500/20 uppercase tracking-widest text-xs"
+                    className="bg-gradient-to-r from-amber-400 to-orange-500 hover:from-amber-300 hover:to-orange-400 text-black font-black px-12 py-5 rounded-2xl transition-all shadow-2xl shadow-amber-500/20 uppercase tracking-widest text-xs scale-105 active:scale-95"
                   >
                     {profile?.subscriptionTier === 'BASIC' ? 'Pro\'ya Yükselt ve Sınırları Kaldır' : 'Premium\'a Geç ve Sınırları Kaldır'}
                   </button>
@@ -2789,10 +3322,10 @@ export default function App() {
             ) : (
               <form 
                 onSubmit={handleSubmit}
-                className="relative max-w-4xl mx-auto group"
+                className="relative max-w-5xl mx-auto group"
               >
                 {/* Quick Actions */}
-                <div className="absolute -top-16 left-0 right-0 flex gap-2 overflow-x-auto pb-4 px-2 no-scrollbar">
+                <div className="absolute -top-24 left-0 right-0 flex gap-3 overflow-x-auto pb-8 px-4 no-scrollbar">
                   {quickActions.map((action) => (
                     <button
                       key={action.id}
@@ -2801,30 +3334,30 @@ export default function App() {
                         setMode(action.mode as AppMode);
                         setInput(action.text);
                       }}
-                      className="whitespace-nowrap flex items-center gap-2 px-4 py-2 bg-zinc-900/50 backdrop-blur-md border border-white/5 rounded-2xl text-[10px] font-black uppercase tracking-widest text-zinc-400 hover:bg-emerald-500/10 hover:text-emerald-400 hover:border-emerald-500/20 transition-all"
+                      className="whitespace-nowrap flex items-center gap-3.5 px-7 py-3.5 bg-zinc-900/80 backdrop-blur-2xl border border-white/10 rounded-2xl text-[11px] font-black uppercase tracking-widest text-zinc-400 hover:bg-emerald-500/20 hover:text-emerald-400 hover:border-emerald-500/30 transition-all duration-500 shadow-2xl active:scale-95"
                     >
-                      <action.icon className="w-3 h-3" />
+                      <action.icon className="w-4 h-4" />
                       {action.text}
                     </button>
                   ))}
                 </div>
 
                 {/* Input Container */}
-                <div className="relative glass border border-white/10 rounded-[2.5rem] p-2 shadow-2xl focus-within:border-emerald-500/50 transition-all">
+                <div className="relative bg-zinc-900/80 backdrop-blur-3xl border border-white/10 rounded-[3rem] p-3 shadow-2xl transition-all duration-700 group-focus-within:border-emerald-500/50 group-focus-within:bg-zinc-900 group-focus-within:shadow-emerald-500/10">
                   {profile?.subscriptionTier !== 'PRO' && (
-                    <div className="absolute -top-12 right-4 flex items-center gap-2 px-3 py-1.5 bg-amber-500/10 border border-amber-500/20 rounded-full cursor-pointer hover:bg-amber-500/20 transition-all" onClick={() => handleModeChange('SUBSCRIPTION')}>
-                      <Zap className="w-3 h-3 text-amber-500" />
-                      <span className="text-[9px] font-black uppercase tracking-widest text-amber-500">Pro'ya Geç ve Sınırları Kaldır</span>
+                    <div className="absolute -top-14 right-8 flex items-center gap-2.5 px-4 py-2 bg-amber-500/10 border border-amber-500/20 rounded-full cursor-pointer hover:bg-amber-500/20 transition-all duration-500 shadow-lg" onClick={() => handleModeChange('SUBSCRIPTION')}>
+                      <Zap className="w-3.5 h-3.5 text-amber-500" />
+                      <span className="text-[10px] font-black uppercase tracking-widest text-amber-500">Pro'ya Geç ve Sınırları Kaldır</span>
                     </div>
                   )}
-                  <div className="absolute -top-4 left-8 px-3 py-1 bg-zinc-900 border border-white/10 rounded-full">
-                    <span className="text-[9px] font-black uppercase tracking-[0.2em] text-zinc-500">
+                  <div className="absolute -top-5 left-10 px-4 py-1.5 bg-zinc-900 border border-white/10 rounded-full shadow-xl">
+                    <span className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-500">
                       Mod: {mode === 'PROJECT_GEN' ? 'Proje Üretici' : 
                             mode === 'DEBUGGER' ? 'Hata Ayıklayıcı' :
                             mode === 'AI_OPTIMIZER' ? 'Kod Optimizasyonu' :
                             mode === 'ROADMAP_GEN' ? 'Yol Haritası' :
                             mode === 'COMPONENT_LIB' ? 'Bileşen Kütüphanesi' :
-                            mode === 'COMMUNITY_PROJS' ? 'Topluluk' :
+                            mode === 'SHOWCASE' ? 'Topluluk' :
                             mode === 'IMAGE_GEN' ? 'Görsel Üretici' :
                             mode === 'DAILY_CHALLENGE' ? 'Günün Görevi' :
                             mode === 'TECH_NEWS' ? 'Teknoloji Haberleri' :
@@ -2832,7 +3365,7 @@ export default function App() {
                     </span>
                   </div>
 
-                  <div className="flex items-end gap-2">
+                  <div className="flex items-end gap-3">
                     <textarea
                       value={input}
                       onChange={(e) => setInput(e.target.value)}
@@ -2849,31 +3382,38 @@ export default function App() {
                         mode === 'IMAGE_GEN' ? "Hayalindeki teknolojik tasarımı tarif et..." :
                         "DeneyapAI'ya bir soru sor..."
                       }
-                      className="w-full bg-transparent border-none rounded-[2rem] p-6 pr-32 focus:outline-none transition-all min-h-[80px] max-h-[300px] resize-none text-sm md:text-base font-medium placeholder:text-zinc-600 custom-scrollbar"
+                      className="w-full bg-transparent border-none rounded-[3rem] p-8 pr-40 focus:outline-none transition-all min-h-[120px] max-h-[450px] resize-none text-base md:text-lg font-medium placeholder:text-zinc-700 custom-scrollbar"
                       rows={1}
                     />
                     
-                    <div className="absolute right-4 bottom-4 flex items-center gap-2">
+                    <div className="absolute right-6 bottom-6 flex items-center gap-3">
                       <button
                         type="button"
                         onClick={toggleVoiceInput}
                         className={cn(
-                          "p-3.5 rounded-2xl transition-all",
-                          isListening ? "bg-red-500 text-white animate-pulse" : "text-zinc-500 hover:text-white hover:bg-white/5"
+                          "p-4 rounded-2xl transition-all duration-500 shadow-xl",
+                          isListening ? "bg-red-500 text-white animate-pulse shadow-red-500/20" : "text-zinc-500 hover:text-white hover:bg-white/5"
                         )}
                       >
-                        {isListening ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
+                        {isListening ? <MicOff className="w-6 h-6" /> : <Mic className="w-6 h-6" />}
                       </button>
                       
                       <button 
                         type="submit"
                         disabled={!input.trim() || isLoading || cooldown > 0}
-                        className="bg-emerald-500 hover:bg-emerald-400 disabled:bg-zinc-800 disabled:text-zinc-600 text-white p-4 rounded-2xl transition-all shadow-xl shadow-emerald-500/20 active:scale-95 group/btn"
+                        className={cn(
+                          "w-16 h-16 rounded-2xl flex items-center justify-center transition-all duration-500 shadow-2xl active:scale-95 group/btn",
+                          !input.trim() || isLoading || cooldown > 0
+                            ? "bg-zinc-800 text-zinc-600 cursor-not-allowed"
+                            : "bg-white text-black hover:scale-105 shadow-white/10"
+                        )}
                       >
                         {cooldown > 0 ? (
-                          <span className="text-xs font-black">{cooldown}</span>
+                          <span className="text-sm font-black">{cooldown}</span>
+                        ) : isLoading ? (
+                          <RefreshCw className="w-6 h-6 animate-spin" />
                         ) : (
-                          <Send className="w-5 h-5 group-hover/btn:translate-x-1 group-hover/btn:-translate-y-1 transition-transform" />
+                          <Send className="w-6 h-6 group-hover/btn:translate-x-1 group-hover/btn:-translate-y-1 transition-transform duration-500" />
                         )}
                       </button>
                     </div>
@@ -2881,18 +3421,21 @@ export default function App() {
                 </div>
               </form>
             )}
-            <div className="mt-6 flex flex-col items-center gap-2">
-              <div className="flex items-center gap-4 mb-2">
-                <button onClick={() => handleModeChange('FAQ')} className="text-[9px] text-zinc-600 hover:text-zinc-400 uppercase tracking-widest font-bold">SSS</button>
-                <button onClick={() => handleModeChange('TERMS')} className="text-[9px] text-zinc-600 hover:text-zinc-400 uppercase tracking-widest font-bold">Şartlar</button>
-                <button onClick={() => handleModeChange('PRIVACY')} className="text-[9px] text-zinc-600 hover:text-zinc-400 uppercase tracking-widest font-bold">Gizlilik</button>
+            <div className="mt-8 flex flex-col items-center gap-4">
+              <div className="flex items-center gap-6">
+                <button onClick={() => handleModeChange('FAQ')} className="text-[10px] text-zinc-600 hover:text-zinc-400 uppercase tracking-widest font-black transition-colors">Destek</button>
+                <div className="w-1 h-1 bg-zinc-800 rounded-full" />
+                <button onClick={() => handleModeChange('TERMS')} className="text-[10px] text-zinc-600 hover:text-zinc-400 uppercase tracking-widest font-black transition-colors">Şartlar</button>
+                <div className="w-1 h-1 bg-zinc-800 rounded-full" />
+                <button onClick={() => handleModeChange('PRIVACY')} className="text-[10px] text-zinc-600 hover:text-zinc-400 uppercase tracking-widest font-black transition-colors">Gizlilik</button>
               </div>
-              <p className="text-center text-[10px] text-zinc-600 uppercase tracking-[0.2em]">
-                DeneyapAI • Bitlis Stüdyo • Milli Teknoloji Hamlesi
-              </p>
-              <p className="text-[9px] text-zinc-700 font-medium">
-                Bitlis Stüdyo tarafından Bitlis'te geliştirildi.
-              </p>
+              <div className="flex items-center gap-3 opacity-30">
+                <div className="w-10 h-[1px] bg-zinc-700" />
+                <p className="text-[9px] text-zinc-600 uppercase tracking-[0.3em] font-black">
+                  DeneyapAI • Bitlis Stüdyo • v4.5
+                </p>
+                <div className="w-10 h-[1px] bg-zinc-700" />
+              </div>
             </div>
           </div>
         )}
@@ -3097,6 +3640,255 @@ export default function App() {
                     className="w-full bg-blue-500 hover:bg-blue-400 text-white font-bold py-4 rounded-2xl transition-all shadow-lg shadow-blue-500/20"
                   >
                     Doğrula ve Aktif Et
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* KVKK Modal */}
+      <AnimatePresence>
+        {showKvkkModal && (
+          <div className="fixed inset-0 z-[500] flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="absolute inset-0 bg-black/90 backdrop-blur-md"
+            />
+            <motion.div 
+              initial={{ scale: 0.9, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.9, opacity: 0, y: 20 }}
+              className="relative bg-zinc-900 border border-white/10 rounded-[2.5rem] p-8 md:p-12 max-w-2xl w-full shadow-2xl overflow-hidden"
+            >
+              <div className="absolute -top-24 -right-24 w-64 h-64 bg-emerald-500/10 blur-3xl rounded-full" />
+              
+              <div className="relative z-10 space-y-8">
+                <div className="flex items-center gap-4">
+                  <div className="w-16 h-16 bg-emerald-500/10 rounded-2xl flex items-center justify-center">
+                    <ShieldCheck className="w-8 h-8 text-emerald-400" />
+                  </div>
+                  <div>
+                    <h3 className="text-3xl font-display font-bold text-white">KVKK Bilgilendirmesi</h3>
+                    <p className="text-zinc-500 text-sm font-medium">Kişisel Verilerin Korunması Kanunu</p>
+                  </div>
+                </div>
+
+                <div className="max-h-[40vh] overflow-y-auto pr-4 custom-scrollbar space-y-4 text-zinc-400 text-sm leading-relaxed">
+                  <p>Değerli Kullanıcımız,</p>
+                  <p>Bitlis Stüdyo olarak, 6698 sayılı Kişisel Verilerin Korunması Kanunu (“KVKK”) uyarınca, veri sorumlusu sıfatıyla, kişisel verilerinizin güvenliği hususuna azami hassasiyet göstermekteyiz.</p>
+                  <p><strong>1. Veri İşleme Amacı:</strong> DeneyapAI uygulamasını kullanırken paylaştığınız veriler (ad, e-posta, kullanım istatistikleri), size daha iyi bir yapay zeka deneyimi sunmak, hesap güvenliğinizi sağlamak ve ilerlemenizi takip etmek amacıyla işlenmektedir.</p>
+                  <p><strong>2. Veri Paylaşımı:</strong> Kişisel verileriniz, yasal yükümlülükler dışında üçüncü taraflarla paylaşılmamaktadır. Yapay zeka modelleriyle paylaşılan veriler anonimleştirilerek iletilmektedir.</p>
+                  <p><strong>3. Haklarınız:</strong> KVKK’nın 11. maddesi uyarınca; verilerinizin işlenip işlenmediğini öğrenme, düzeltilmesini isteme ve silinmesini talep etme haklarına sahipsiniz.</p>
+                  <p>Uygulamayı kullanmaya devam ederek, KVKK Aydınlatma Metni'ni okuduğunuzu ve kabul ettiğinizi beyan etmiş olursunuz.</p>
+                </div>
+
+                <div className="flex flex-col sm:flex-row gap-4 pt-4">
+                  <button 
+                    onClick={handleAcceptKvkk}
+                    className="flex-1 bg-emerald-500 hover:bg-emerald-400 text-black font-black py-4 rounded-2xl transition-all shadow-xl shadow-emerald-500/20 uppercase tracking-widest text-xs"
+                  >
+                    Okudum, Kabul Ediyorum
+                  </button>
+                  <button 
+                    onClick={() => handleLogout()}
+                    className="px-8 py-4 bg-zinc-800 hover:bg-zinc-700 text-zinc-400 font-bold rounded-2xl transition-all text-xs uppercase tracking-widest"
+                  >
+                    Reddet ve Çıkış Yap
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Showcase Modal */}
+      <AnimatePresence>
+        {showShowcaseModal && (
+          <div className="fixed inset-0 z-[500] flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowShowcaseModal(false)}
+              className="absolute inset-0 bg-black/90 backdrop-blur-md"
+            />
+            <motion.div 
+              initial={{ scale: 0.9, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.9, opacity: 0, y: 20 }}
+              className="relative bg-zinc-900 border border-white/10 rounded-[2.5rem] p-8 md:p-12 max-w-2xl w-full shadow-2xl overflow-hidden"
+            >
+              <div className="absolute -top-24 -right-24 w-64 h-64 bg-purple-500/10 blur-3xl rounded-full" />
+              
+              <div className="relative z-10 space-y-8">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-4">
+                    <div className="w-16 h-16 bg-purple-500/10 rounded-2xl flex items-center justify-center">
+                      <ImageIcon className="w-8 h-8 text-purple-400" />
+                    </div>
+                    <div>
+                      <h3 className="text-3xl font-display font-bold text-white">Proje Paylaş</h3>
+                      <p className="text-zinc-500 text-sm font-medium">Toplulukla çalışmanı paylaş ve ilham ver.</p>
+                    </div>
+                  </div>
+                  <button onClick={() => setShowShowcaseModal(false)} className="p-2 hover:bg-white/5 rounded-xl text-zinc-500">
+                    <X className="w-6 h-6" />
+                  </button>
+                </div>
+
+                <form className="space-y-6" onSubmit={(e) => {
+                  e.preventDefault();
+                  const formData = new FormData(e.currentTarget);
+                  const newProject = {
+                    id: Math.random().toString(36).substr(2, 9),
+                    title: formData.get('title') as string,
+                    author: profile?.name || 'Anonim',
+                    description: formData.get('description') as string,
+                    likes: 0,
+                    category: formData.get('category') as string,
+                    image: (formData.get('image_url') as string) || `https://picsum.photos/seed/${Math.random()}/800/600`
+                  };
+                  setShowcaseProjects([newProject, ...showcaseProjects]);
+                  if (profile) {
+                    setProfile({
+                      ...profile,
+                      stats: {
+                        ...profile.stats,
+                        projectsShared: (profile.stats?.projectsShared || 0) + 1
+                      }
+                    } as UserProfile);
+                  }
+                  setShowShowcaseModal(false);
+                  addNotification("Projeniz başarıyla paylaşıldı! 🚀", "success");
+                }}>
+                  <div className="space-y-4">
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 ml-1">Proje Başlığı</label>
+                      <input 
+                        name="title"
+                        required
+                        placeholder="Örn: Akıllı Ev Sistemi"
+                        className="w-full bg-white/5 border border-white/10 rounded-2xl px-6 py-4 focus:outline-none focus:ring-2 focus:ring-purple-500/50 transition-all"
+                      />
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 ml-1">Kategori</label>
+                        <select 
+                          name="category"
+                          className="w-full bg-white/5 border border-white/10 rounded-2xl px-6 py-4 focus:outline-none focus:ring-2 focus:ring-purple-500/50 transition-all appearance-none"
+                        >
+                          <option value="Robotik">Robotik</option>
+                          <option value="Yazılım">Yazılım</option>
+                          <option value="Tarım">Tarım</option>
+                          <option value="Enerji">Enerji</option>
+                          <option value="Sağlık">Sağlık</option>
+                        </select>
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 ml-1">Görsel URL (Opsiyonel)</label>
+                        <input 
+                          name="image_url"
+                          placeholder="https://..."
+                          className="w-full bg-white/5 border border-white/10 rounded-2xl px-6 py-4 focus:outline-none focus:ring-2 focus:ring-purple-500/50 transition-all"
+                        />
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 ml-1">Proje Açıklaması</label>
+                      <textarea 
+                        name="description"
+                        required
+                        rows={4}
+                        placeholder="Projeniz ne işe yarıyor? Hangi malzemeleri kullandınız?"
+                        className="w-full bg-white/5 border border-white/10 rounded-2xl px-6 py-4 focus:outline-none focus:ring-2 focus:ring-purple-500/50 transition-all resize-none"
+                      />
+                    </div>
+                  </div>
+
+                  <button 
+                    type="submit"
+                    className="w-full bg-purple-500 hover:bg-purple-400 text-white font-black py-5 rounded-2xl transition-all shadow-xl shadow-purple-500/20 uppercase tracking-widest text-xs"
+                  >
+                    Hemen Paylaş
+                  </button>
+                </form>
+              </div>
+            </motion.div>
+          </div>
+        )}
+
+        {selectedProject && (
+          <div className="fixed inset-0 z-[600] flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setSelectedProject(null)}
+              className="absolute inset-0 bg-black/95 backdrop-blur-xl"
+            />
+            <motion.div 
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="relative bg-zinc-900 border border-white/10 rounded-[3rem] max-w-4xl w-full shadow-2xl overflow-hidden flex flex-col md:flex-row max-h-[90vh]"
+            >
+              <div className="md:w-1/2 h-64 md:h-auto relative">
+                <img 
+                  src={selectedProject.image || 'https://picsum.photos/seed/project/800/600'} 
+                  alt={selectedProject.title}
+                  className="w-full h-full object-cover"
+                  referrerPolicy="no-referrer"
+                />
+                <div className="absolute top-6 left-6">
+                  <div className="px-4 py-2 bg-purple-500 text-white text-[10px] font-black uppercase tracking-widest rounded-full shadow-lg">
+                    {selectedProject.category}
+                  </div>
+                </div>
+              </div>
+              
+              <div className="md:w-1/2 p-8 md:p-12 flex flex-col overflow-y-auto custom-scrollbar">
+                <div className="flex items-center justify-between mb-8">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-purple-500/10 rounded-xl flex items-center justify-center">
+                      <User className="w-5 h-5 text-purple-400" />
+                    </div>
+                    <div>
+                      <p className="text-[10px] font-black text-zinc-500 uppercase tracking-widest">Paylaşan</p>
+                      <p className="text-white font-bold">{selectedProject.author}</p>
+                    </div>
+                  </div>
+                  <button onClick={() => setSelectedProject(null)} className="p-2 hover:bg-white/5 rounded-xl text-zinc-500">
+                    <X className="w-6 h-6" />
+                  </button>
+                </div>
+
+                <div className="space-y-6 flex-1">
+                  <h3 className="text-4xl font-display font-bold text-white leading-tight">{selectedProject.title}</h3>
+                  <div className="h-1 w-20 bg-purple-500 rounded-full" />
+                  <div className="prose prose-invert max-w-none">
+                    <p className="text-zinc-400 text-lg leading-relaxed whitespace-pre-wrap">
+                      {selectedProject.description}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="pt-8 mt-8 border-t border-white/5 flex items-center justify-between">
+                  <button 
+                    onClick={() => handleLikeProject(selectedProject.id)}
+                    className="flex items-center gap-3 px-6 py-3 bg-white/5 hover:bg-white/10 rounded-2xl transition-all group/like"
+                  >
+                    <Star className="w-5 h-5 text-zinc-500 group-hover/like:fill-red-400 group-hover/like:text-red-400" />
+                    <span className="text-sm font-bold text-zinc-300">{selectedProject.likes} Beğeni</span>
+                  </button>
+                  <button className="flex items-center gap-2 text-purple-400 hover:text-purple-300 transition-colors font-bold text-sm">
+                    <Share2 className="w-5 h-5" />
+                    Paylaş
                   </button>
                 </div>
               </div>
