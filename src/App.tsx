@@ -58,7 +58,8 @@ import {
   CreditCard,
   HelpCircle,
   FileText,
-  Bell
+  Bell,
+  Trophy
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import Markdown from 'react-markdown';
@@ -221,6 +222,130 @@ const DAILY_TIPS = [
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
+
+const LeaderboardView = ({ profile }: { profile: UserProfile | null }) => {
+  const leaders = [
+    { name: "Ahmet Yılmaz", score: 2450, level: "İleri", avatar: "https://picsum.photos/seed/ahmet/100/100" },
+    { name: "Elif Kaya", score: 2100, level: "İleri", avatar: "https://picsum.photos/seed/elif/100/100" },
+    { name: "Mehmet Demir", score: 1850, level: "Orta", avatar: "https://picsum.photos/seed/mehmet/100/100" },
+    { name: "Zeynep Aksoy", score: 1600, level: "Orta", avatar: "https://picsum.photos/seed/zeynep/100/100" },
+    { name: "Can Yıldız", score: 1420, level: "Başlangıç", avatar: "https://picsum.photos/seed/can/100/100" },
+    { name: profile?.name || "Siz", score: (profile?.stats?.quizScore || 0) * 10, level: profile?.level || "Başlangıç", avatar: "https://picsum.photos/seed/you/100/100", isYou: true },
+  ].sort((a, b) => b.score - a.score);
+
+  const topThree = leaders.slice(0, 3);
+  const others = leaders.slice(3);
+
+  return (
+    <div className="space-y-12 p-4 md:p-8 max-w-5xl mx-auto pb-32">
+      <div className="text-center space-y-4">
+        <div className="inline-flex items-center gap-3 px-4 py-2 bg-amber-500/10 border border-amber-500/20 rounded-full">
+          <Trophy className="text-amber-400 w-4 h-4" />
+          <span className="text-[10px] font-black uppercase tracking-[0.2em] text-amber-400">Haftalık Liderler</span>
+        </div>
+        <h2 className="text-4xl md:text-5xl font-display font-bold text-white tracking-tight">Teknoloji Fatihleri</h2>
+        <p className="text-zinc-500 max-w-lg mx-auto">DeneyapAI topluluğunda en yüksek puanı toplayan zekalar. Sen de yarışmaya katıl ve yerini al!</p>
+      </div>
+
+      {/* Podium */}
+      <div className="grid grid-cols-3 gap-4 items-end pt-12 max-w-3xl mx-auto">
+        {/* 2nd Place */}
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.2 }}
+          className="flex flex-col items-center gap-4"
+        >
+          <div className="relative group">
+            <div className="absolute -inset-1 bg-gradient-to-br from-zinc-300 to-zinc-500 rounded-3xl blur opacity-20 group-hover:opacity-40 transition-opacity" />
+            <img src={topThree[1]?.avatar} className="w-16 h-16 md:w-24 md:h-24 rounded-3xl object-cover border-2 border-zinc-400 relative z-10" referrerPolicy="no-referrer" />
+            <div className="absolute -bottom-3 left-1/2 -translate-x-1/2 w-8 h-8 bg-zinc-400 rounded-full flex items-center justify-center text-black font-black text-xs z-20 shadow-xl">2</div>
+          </div>
+          <div className="text-center">
+            <div className="font-bold text-sm text-white truncate w-24 md:w-32">{topThree[1]?.name}</div>
+            <div className="text-amber-400 font-display font-bold">{topThree[1]?.score}</div>
+          </div>
+          <div className="w-full h-24 md:h-32 glass-dark rounded-t-3xl border-t border-x border-white/10 flex items-center justify-center">
+            <div className="w-1 h-12 bg-white/5 rounded-full" />
+          </div>
+        </motion.div>
+
+        {/* 1st Place */}
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="flex flex-col items-center gap-4"
+        >
+          <div className="relative group">
+            <div className="absolute -inset-2 bg-gradient-to-br from-amber-300 to-orange-500 rounded-[2rem] blur opacity-40 group-hover:opacity-60 transition-opacity animate-pulse" />
+            <img src={topThree[0]?.avatar} className="w-20 h-20 md:w-32 md:h-32 rounded-[2rem] object-cover border-4 border-amber-400 relative z-10" referrerPolicy="no-referrer" />
+            <div className="absolute -bottom-4 left-1/2 -translate-x-1/2 w-10 h-10 bg-amber-400 rounded-full flex items-center justify-center text-black font-black text-sm z-20 shadow-2xl">1</div>
+          </div>
+          <div className="text-center">
+            <div className="font-bold text-lg text-white truncate w-24 md:w-40">{topThree[0]?.name}</div>
+            <div className="text-amber-400 font-display font-bold text-xl">{topThree[0]?.score}</div>
+          </div>
+          <div className="w-full h-32 md:h-48 bg-gradient-to-b from-amber-500/20 to-transparent rounded-t-[2.5rem] border-t border-x border-amber-500/30 flex items-center justify-center">
+            <Trophy className="w-8 h-8 text-amber-500/40" />
+          </div>
+        </motion.div>
+
+        {/* 3rd Place */}
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.3 }}
+          className="flex flex-col items-center gap-4"
+        >
+          <div className="relative group">
+            <div className="absolute -inset-1 bg-gradient-to-br from-orange-400 to-orange-700 rounded-3xl blur opacity-20 group-hover:opacity-40 transition-opacity" />
+            <img src={topThree[2]?.avatar} className="w-16 h-16 md:w-24 md:h-24 rounded-3xl object-cover border-2 border-orange-500/50 relative z-10" referrerPolicy="no-referrer" />
+            <div className="absolute -bottom-3 left-1/2 -translate-x-1/2 w-8 h-8 bg-orange-600 rounded-full flex items-center justify-center text-white font-black text-xs z-20 shadow-xl">3</div>
+          </div>
+          <div className="text-center">
+            <div className="font-bold text-sm text-white truncate w-24 md:w-32">{topThree[2]?.name}</div>
+            <div className="text-amber-400 font-display font-bold">{topThree[2]?.score}</div>
+          </div>
+          <div className="w-full h-20 md:h-24 glass-dark rounded-t-3xl border-t border-x border-white/10 flex items-center justify-center">
+            <div className="w-1 h-8 bg-white/5 rounded-full" />
+          </div>
+        </motion.div>
+      </div>
+
+      {/* List */}
+      <div className="grid gap-3 max-w-3xl mx-auto">
+        {others.map((leader, idx) => (
+          <motion.div
+            key={leader.name}
+            initial={{ opacity: 0, x: -20 }}
+            whileInView={{ opacity: 1, x: 0 }}
+            viewport={{ once: true }}
+            className={cn(
+              "glass-card rounded-[2rem] p-5 flex items-center justify-between group hover:scale-[1.02] transition-all duration-500",
+              leader.isYou && "border-emerald-500/30 bg-emerald-500/5"
+            )}
+          >
+            <div className="flex items-center gap-5">
+              <div className="text-xl font-black text-zinc-800 w-8">{idx + 4}.</div>
+              <img src={leader.avatar} alt={leader.name} className="w-12 h-12 rounded-2xl object-cover border border-white/10" referrerPolicy="no-referrer" />
+              <div>
+                <div className="font-bold text-white flex items-center gap-2">
+                  {leader.name}
+                  {leader.isYou && <span className="text-[8px] bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded-full uppercase font-black">Siz</span>}
+                </div>
+                <div className="text-[10px] text-zinc-500 font-black uppercase tracking-widest">{leader.level} Seviye</div>
+              </div>
+            </div>
+            <div className="text-right">
+              <div className="text-xl font-display font-bold text-white">{leader.score}</div>
+              <div className="text-[8px] text-zinc-600 font-black uppercase tracking-widest">Puan</div>
+            </div>
+          </motion.div>
+        ))}
+      </div>
+    </div>
+  );
+};
 
 export default function App() {
   const [mode, setMode] = useState<AppMode>('PROJECT_GEN');
@@ -1940,7 +2065,7 @@ export default function App() {
       </AnimatePresence>
 
       {/* Sidebar */}
-      <aside className="w-20 lg:w-80 border-r border-white/5 bg-black/40 backdrop-blur-3xl flex flex-col hidden md:flex shrink-0 h-screen sticky top-0 z-50 transition-all duration-500 group/sidebar">
+      <aside className="fixed left-6 top-6 bottom-6 w-20 lg:w-80 glass-dark rounded-[2.5rem] flex flex-col hidden md:flex z-50 transition-all duration-500 group/sidebar shadow-2xl">
         <div className="p-6 lg:p-8">
           <div className="flex items-center gap-4 group cursor-pointer" onClick={() => handleModeChange('PROJECT_GEN')}>
             <div className="w-10 h-10 lg:w-14 lg:h-14 bg-gradient-to-br from-emerald-400 to-teal-600 rounded-[1.5rem] flex items-center justify-center shadow-2xl shadow-emerald-500/20 transition-all duration-700 group-hover:scale-110 group-hover:rotate-6 group-hover:shadow-emerald-500/40">
@@ -1950,7 +2075,7 @@ export default function App() {
               <h1 className="font-display font-bold text-2xl tracking-tight text-white leading-none mb-1">DeneyapAI</h1>
               <div className="flex items-center gap-1.5">
                 <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
-                <p className="text-[9px] text-zinc-500 font-black uppercase tracking-[0.2em]">Next-Gen v4.5</p>
+                <p className="text-[9px] text-zinc-500 font-black uppercase tracking-[0.2em]">Next-Gen v5.0</p>
               </div>
             </div>
           </div>
@@ -1964,6 +2089,7 @@ export default function App() {
               {[
                 { id: 'PROJECT_GEN', icon: Lightbulb, label: 'Proje Üretici', color: 'emerald' },
                 { id: 'QUIZ', icon: Award, label: 'Bilgi Yarışması', color: 'amber' },
+                { id: 'LEADERBOARD', icon: Trophy, label: 'Liderlik Tablosu', color: 'amber' },
                 { id: 'SHOWCASE', icon: ImageIcon, label: 'Topluluk Vitrini', color: 'purple' },
                 { id: 'DEBUGGER', icon: Bug, label: 'Kod Debugger', color: 'blue' },
               ].map((item) => (
@@ -2038,7 +2164,7 @@ export default function App() {
               onClick={() => setShowChangelog(true)}
               className="w-full py-3 bg-white/5 hover:bg-white/10 rounded-2xl text-[10px] font-black uppercase tracking-widest text-zinc-400 transition-all duration-300 border border-white/5 hidden lg:block"
             >
-              Yenilikler v4.5
+              Yenilikler v5.0
             </button>
             <div className="flex items-center justify-center gap-4 pt-2 lg:hidden">
               <button 
@@ -2060,7 +2186,7 @@ export default function App() {
       </aside>
 
       {/* Main Content */}
-      <main className="flex-1 flex flex-col relative pb-64 lg:pb-0 min-w-0">
+      <main className="flex-1 flex flex-col relative pb-64 lg:pb-0 min-w-0 md:ml-32 lg:ml-96">
         {/* Header */}
         <header className="h-24 px-8 border-b border-white/5 flex items-center justify-between bg-black/20 backdrop-blur-xl sticky top-0 z-30">
           <div className="flex items-center gap-6 lg:hidden">
@@ -2144,8 +2270,9 @@ export default function App() {
         {/* Tab Content */}
         <div className="flex-1 overflow-y-auto custom-scrollbar">
           {activeTab === 'chat' ? (
-            ['IMAGE_GEN', 'DEBUGGER', 'PROJECT_GEN', 'DAILY_CHALLENGE', 'TECH_NEWS', 'QUIZ', 'SHOWCASE'].includes(mode) ? (
+            ['IMAGE_GEN', 'DEBUGGER', 'PROJECT_GEN', 'DAILY_CHALLENGE', 'TECH_NEWS', 'QUIZ', 'SHOWCASE', 'LEADERBOARD'].includes(mode) ? (
               <div className="p-4 md:p-8 max-w-6xl mx-auto space-y-8 pb-64">
+                {mode === 'LEADERBOARD' && <LeaderboardView profile={profile} />}
                 {mode === 'QUIZ' && (
                   <div className="space-y-8">
                     <div className="flex items-center justify-between">
@@ -2490,13 +2617,101 @@ export default function App() {
                 </button>
               </div>
             ) : (
-              <div className="p-4 md:p-8 space-y-6 pb-64">
-                {showDailyTip && (
-                  <motion.div 
-                    initial={{ opacity: 0, y: -20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="glass-card rounded-[2rem] p-8 relative overflow-hidden group border-emerald-500/20"
-                  >
+              <div className="p-4 md:p-12 max-w-6xl mx-auto space-y-12 pb-64">
+                {messages.length === 1 ? (
+                  <div className="space-y-12">
+                    <div className="space-y-4 text-center md:text-left">
+                      <motion.h2 
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="text-4xl md:text-6xl font-display font-bold text-white tracking-tight"
+                      >
+                        Selam, <span className="text-emerald-400">{profile?.name}</span>
+                      </motion.h2>
+                      <motion.p 
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.1 }}
+                        className="text-zinc-500 text-lg md:text-xl max-w-2xl"
+                      >
+                        Teknoloji yolculuğunda bugün ne inşa etmek istersin? Senin için en gelişmiş araçları hazırladım.
+                      </motion.p>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                      <motion.div 
+                        whileHover={{ scale: 1.02 }}
+                        onClick={() => handleModeChange('PROJECT_GEN')}
+                        className="md:col-span-2 bento-item group cursor-pointer border-emerald-500/20 bg-emerald-500/5"
+                      >
+                        <div className="flex flex-col h-full justify-between gap-8">
+                          <div className="w-14 h-14 bg-emerald-500 text-black rounded-2xl flex items-center justify-center shadow-lg shadow-emerald-500/20">
+                            <Lightbulb className="w-8 h-8" />
+                          </div>
+                          <div>
+                            <h3 className="text-2xl font-display font-bold text-white mb-2">Proje Üretici</h3>
+                            <p className="text-zinc-400 text-sm">Elindeki malzemeleri söyle, sana en yaratıcı Deneyap projesini tasarlayayım.</p>
+                          </div>
+                        </div>
+                      </motion.div>
+
+                      <motion.div 
+                        whileHover={{ scale: 1.02 }}
+                        onClick={() => handleModeChange('IMAGE_GEN')}
+                        className="bento-item group cursor-pointer border-purple-500/20 bg-purple-500/5"
+                      >
+                        <div className="flex flex-col h-full justify-between gap-8">
+                          <div className="w-14 h-14 bg-purple-500 text-white rounded-2xl flex items-center justify-center shadow-lg shadow-purple-500/20">
+                            <ImageIcon className="w-8 h-8" />
+                          </div>
+                          <div>
+                            <h3 className="text-2xl font-display font-bold text-white mb-2">Görsel Üretici</h3>
+                            <p className="text-zinc-400 text-sm">Hayalindeki teknolojik tasarımı gerçeğe dönüştür.</p>
+                          </div>
+                        </div>
+                      </motion.div>
+
+                      <motion.div 
+                        whileHover={{ scale: 1.02 }}
+                        onClick={() => handleStartQuiz()}
+                        className="bento-item group cursor-pointer border-amber-500/20 bg-amber-500/5"
+                      >
+                        <div className="flex flex-col h-full justify-between gap-8">
+                          <div className="w-14 h-14 bg-amber-500 text-black rounded-2xl flex items-center justify-center shadow-lg shadow-amber-500/20">
+                            <Trophy className="w-8 h-8" />
+                          </div>
+                          <div>
+                            <h3 className="text-2xl font-display font-bold text-white mb-2">Bilgi Quiz</h3>
+                            <p className="text-zinc-400 text-sm">Bilgini test et, puanları topla ve liderliğe oyna.</p>
+                          </div>
+                        </div>
+                      </motion.div>
+
+                      <motion.div 
+                        whileHover={{ scale: 1.02 }}
+                        onClick={() => handleModeChange('DEBUGGER')}
+                        className="md:col-span-2 bento-item group cursor-pointer border-blue-500/20 bg-blue-500/5"
+                      >
+                        <div className="flex flex-col h-full justify-between gap-8">
+                          <div className="w-14 h-14 bg-blue-500 text-white rounded-2xl flex items-center justify-center shadow-lg shadow-blue-500/20">
+                            <Bug className="w-8 h-8" />
+                          </div>
+                          <div>
+                            <h3 className="text-2xl font-display font-bold text-white mb-2">Kod Debugger</h3>
+                            <p className="text-zinc-400 text-sm">Hatalı kodlarını yapıştır, saniyeler içinde çözümünü bulalım.</p>
+                          </div>
+                        </div>
+                      </motion.div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-12">
+                    {showDailyTip && (
+                      <motion.div 
+                        initial={{ opacity: 0, y: -20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="glass-card rounded-[2rem] p-8 relative overflow-hidden group border-emerald-500/20"
+                      >
                     <div className="absolute top-0 right-0 p-4">
                       <button 
                         onClick={() => setShowDailyTip(false)}
@@ -2547,7 +2762,7 @@ export default function App() {
                           </div>
                           <div>
                             <span className="text-[10px] font-black uppercase tracking-[0.2em] text-emerald-400 block">DeneyapAI Mentor</span>
-                            <span className="text-[9px] text-zinc-500 font-bold uppercase tracking-widest">Sistem v4.5 • {new Date(msg.timestamp).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })}</span>
+                            <span className="text-[9px] text-zinc-500 font-bold uppercase tracking-widest">Sistem v5.0 • {new Date(msg.timestamp).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })}</span>
                           </div>
                         </div>
                       )}
@@ -2642,9 +2857,8 @@ export default function App() {
               )}
               <div ref={messagesEndRef} />
             </div>
-          ) ) : activeTab === 'modes' ? (
+          )) : activeTab === 'modes' ? (
             mode === 'SUBSCRIPTION' ? (
-            <div className="p-4 md:p-8 max-w-6xl mx-auto space-y-12 pb-24 lg:pb-8">
               <div className="text-center space-y-4">
                 <motion.div
                   initial={{ opacity: 0, scale: 0.9 }}
@@ -2943,8 +3157,7 @@ export default function App() {
                 </div>
               </div>
             </div>
-          )
-        ) : activeTab === 'history' ? (
+          )) : activeTab === 'history' ? (
             <div className="p-4 md:p-8 max-w-5xl mx-auto space-y-8 pb-24 lg:pb-8">
               <div className="flex items-center justify-between mb-8">
                 <div className="flex items-center gap-4">
@@ -3032,10 +3245,9 @@ export default function App() {
                     </motion.div>
                   ))}
                 </div>
-              )
-            }
-          </div>
-        ) : (
+              )}
+            </div>
+          :
             <div className="p-4 md:p-8 max-w-6xl mx-auto space-y-12 pb-24 lg:pb-8">
               <div className="flex items-center gap-4 mb-8">
                 <div className="w-12 h-12 bg-emerald-500/10 rounded-2xl flex items-center justify-center">
@@ -3138,7 +3350,6 @@ export default function App() {
                             Aktif Et
                           </button>
                         )}
-                      </div>
                     </div>
                   </div>
                 </div>
@@ -3291,8 +3502,9 @@ export default function App() {
                 </div>
               </div>
             </div>
-          )}
-        </div>
+          </div>
+        ))}
+      </div>
 
         {/* Input Area (Only in Chat Tab) */}
         {activeTab === 'chat' && !['LIVE_VOICE', 'SUBSCRIPTION', 'FAQ', 'TERMS'].includes(mode) && (
@@ -3432,7 +3644,7 @@ export default function App() {
               <div className="flex items-center gap-3 opacity-30">
                 <div className="w-10 h-[1px] bg-zinc-700" />
                 <p className="text-[9px] text-zinc-600 uppercase tracking-[0.3em] font-black">
-                  DeneyapAI • Bitlis Stüdyo • v4.5
+                  DeneyapAI • Bitlis Stüdyo • v5.0
                 </p>
                 <div className="w-10 h-[1px] bg-zinc-700" />
               </div>
@@ -3458,44 +3670,34 @@ export default function App() {
     </main>
 
       {/* Mobile Navigation */}
-      <div className="lg:hidden fixed bottom-0 left-0 right-0 bg-zinc-900/80 backdrop-blur-lg border-t border-zinc-800 px-6 py-3 flex items-center justify-between z-50">
+      <div className="lg:hidden fixed bottom-0 left-0 right-0 bg-zinc-950/90 backdrop-blur-2xl border-t border-white/5 px-6 py-4 flex items-center justify-between z-50 rounded-t-[2.5rem] shadow-[0_-20px_50px_-12px_rgba(0,0,0,0.5)]">
         <button 
           onClick={() => { setMode('PROJECT_GEN'); setActiveTab('chat'); }}
-          className={cn("flex flex-col items-center gap-1", mode === 'PROJECT_GEN' && activeTab === 'chat' ? "text-emerald-400" : "text-zinc-500")}
+          className={cn("flex flex-col items-center gap-1.5 transition-all duration-300", mode === 'PROJECT_GEN' && activeTab === 'chat' ? "text-emerald-400 scale-110" : "text-zinc-600")}
         >
-          <Lightbulb className="w-5 h-5" />
-          <span className="text-[10px] font-bold uppercase">Proje</span>
+          <Lightbulb className="w-6 h-6" />
+          <span className="text-[8px] font-black uppercase tracking-widest">Proje</span>
         </button>
-        {profile?.subscriptionTier !== 'PRO' ? (
-          <button 
-            onClick={() => handleModeChange('SUBSCRIPTION')}
-            className="flex flex-col items-center gap-1 text-amber-500 animate-pulse"
-          >
-            <Zap className="w-5 h-5" />
-            <span className="text-[10px] font-bold uppercase">Pro'ya Geç</span>
-          </button>
-        ) : (
-          <button 
-            onClick={() => { setMode('DEBUGGER'); setActiveTab('chat'); }}
-            className={cn("flex flex-col items-center gap-1", mode === 'DEBUGGER' && activeTab === 'chat' ? "text-blue-400" : "text-zinc-500")}
-          >
-            <Bug className="w-5 h-5" />
-            <span className="text-[10px] font-bold uppercase">Debug</span>
-          </button>
-        )}
+        <button 
+          onClick={() => { setMode('LEADERBOARD'); setActiveTab('chat'); }}
+          className={cn("flex flex-col items-center gap-1.5 transition-all duration-300", mode === 'LEADERBOARD' && activeTab === 'chat' ? "text-amber-400 scale-110" : "text-zinc-600")}
+        >
+          <Trophy className="w-6 h-6" />
+          <span className="text-[8px] font-black uppercase tracking-widest">Liderler</span>
+        </button>
         <button 
           onClick={() => setActiveTab('history')}
-          className={cn("flex flex-col items-center gap-1", activeTab === 'history' ? "text-amber-400" : "text-zinc-500")}
+          className={cn("flex flex-col items-center gap-1.5 transition-all duration-300", activeTab === 'history' ? "text-blue-400 scale-110" : "text-zinc-600")}
         >
-          <HistoryIcon className="w-5 h-5" />
-          <span className="text-[10px] font-bold uppercase">Geçmiş</span>
+          <HistoryIcon className="w-6 h-6" />
+          <span className="text-[8px] font-black uppercase tracking-widest">Geçmiş</span>
         </button>
         <button 
           onClick={() => setActiveTab('profile')}
-          className={cn("flex flex-col items-center gap-1", activeTab === 'profile' ? "text-purple-400" : "text-zinc-500")}
+          className={cn("flex flex-col items-center gap-1.5 transition-all duration-300", activeTab === 'profile' ? "text-purple-400 scale-110" : "text-zinc-600")}
         >
-          <User className="w-5 h-5" />
-          <span className="text-[10px] font-bold uppercase">Profil</span>
+          <User className="w-6 h-6" />
+          <span className="text-[8px] font-black uppercase tracking-widest">Profil</span>
         </button>
       </div>
 
