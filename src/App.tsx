@@ -1111,6 +1111,1044 @@ export default function App() {
     setTimeout(() => setCopiedIdx(null), 2000);
   };
 
+  const renderTabContent = () => {
+    if (activeTab === 'history') {
+      return (
+        <div className="p-4 md:p-8 max-w-5xl mx-auto space-y-8 pb-24 lg:pb-8">
+          <div className="flex items-center justify-between mb-8">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 bg-amber-500/10 rounded-2xl flex items-center justify-center">
+                <HistoryIcon className="text-amber-400 w-6 h-6" />
+              </div>
+              <div>
+                <h2 className="text-3xl font-display font-bold">Geçmiş Kayıtlarım</h2>
+                <p className="text-zinc-500 text-sm font-medium">Daha önce yaptığın tüm çalışmalar burada saklanır.</p>
+              </div>
+            </div>
+            {history.length > 0 && (
+              <button 
+                onClick={clearHistory}
+                className="flex items-center gap-2 px-4 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-400 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all"
+              >
+                <Trash2 className="w-3 h-3" />
+                Tümünü Temizle
+              </button>
+            )}
+          </div>
+          
+          {history.length === 0 ? (
+            <div className="text-center py-32 glass-card rounded-[2.5rem] border-dashed border-white/5">
+              <div className="w-20 h-20 bg-zinc-900 rounded-full flex items-center justify-center mx-auto mb-6">
+                <MessageSquare className="w-10 h-10 text-zinc-700" />
+              </div>
+              <h3 className="text-xl font-display font-bold text-zinc-400 mb-2">Henüz Kayıt Yok</h3>
+              <p className="text-zinc-600 text-sm max-w-xs mx-auto">Henüz bir kayıt bulunmuyor. İlk sorunu sorarak teknoloji yolculuğuna başlayabilirsin!</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {history.map((item) => (
+                <motion.div 
+                  key={item.id}
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="glass-card rounded-[2rem] p-8 hover:border-emerald-500/30 transition-all group relative overflow-hidden"
+                >
+                  <div className="absolute top-0 right-0 p-4">
+                    <button 
+                      onClick={() => deleteHistoryItem(item.id)}
+                      className="p-2 text-zinc-600 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-all"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+
+                  <div className="flex items-center gap-4 mb-6">
+                    <div className={cn(
+                      "w-12 h-12 rounded-2xl flex items-center justify-center transition-transform group-hover:scale-110",
+                      item.mode === 'PROJECT_GEN' ? "bg-emerald-500/10 text-emerald-400" : 
+                      item.mode === 'LIVE_VOICE' ? "bg-red-500/10 text-red-400" :
+                      "bg-blue-500/10 text-blue-400"
+                    )}>
+                      {item.mode === 'PROJECT_GEN' ? <Lightbulb className="w-6 h-6" /> : 
+                       item.mode === 'LIVE_VOICE' ? <Radio className="w-6 h-6" /> :
+                       <Bug className="w-6 h-6" />}
+                    </div>
+                    <div>
+                      <div className="text-lg font-display font-bold text-white line-clamp-1">{item.title}</div>
+                      <div className="text-[10px] text-zinc-500 font-black uppercase tracking-widest">{new Date(item.timestamp).toLocaleString('tr-TR')}</div>
+                    </div>
+                  </div>
+
+                  <div className="markdown-body text-sm line-clamp-4 text-zinc-400 group-hover:text-zinc-300 transition-colors">
+                    <Markdown>{item.content}</Markdown>
+                  </div>
+
+                  <div className="mt-6 pt-6 border-t border-white/5 flex items-center justify-between">
+                    <span className="text-[9px] font-black uppercase tracking-widest text-zinc-600">
+                      Mod: {item.mode}
+                    </span>
+                    <button 
+                      onClick={() => {
+                        setMode(item.mode as AppMode);
+                        setActiveTab('chat');
+                        setMessages([{ role: 'user', content: item.title, timestamp: Date.now() }, { role: 'assistant', content: item.content, timestamp: Date.now() }]);
+                      }}
+                      className="text-[10px] font-black uppercase tracking-widest text-emerald-400 hover:text-emerald-300 transition-colors"
+                    >
+                      Tekrar Görüntüle →
+                    </button>
+                  </div>
+                </motion.div>
+              ))}
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    if (activeTab === 'profile') {
+      return (
+        <div className="p-4 md:p-8 max-w-6xl mx-auto space-y-12 pb-24 lg:pb-8">
+          <div className="flex items-center gap-4 mb-8">
+            <div className="w-12 h-12 bg-emerald-500/10 rounded-2xl flex items-center justify-center">
+              <User className="text-emerald-400 w-6 h-6" />
+            </div>
+            <div>
+              <h2 className="text-3xl font-display font-bold">Kullanıcı Paneli</h2>
+              <p className="text-zinc-500 text-sm font-medium">Teknoloji yolculuğundaki ilerlemeni takip et.</p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            <div className="lg:col-span-4 space-y-6">
+              {profile?.subscriptionTier !== 'PRO' && (
+                <motion.div 
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  className="glass-card rounded-[2.5rem] p-8 bg-gradient-to-br from-amber-500/20 to-orange-600/20 border-amber-500/30 relative overflow-hidden"
+                >
+                  <div className="absolute -top-10 -right-10 w-32 h-32 bg-amber-500/20 blur-3xl rounded-full" />
+                  <div className="relative z-10">
+                    <div className="flex items-center gap-3 mb-4">
+                      <div className="w-10 h-10 bg-amber-500 text-black rounded-xl flex items-center justify-center shadow-lg">
+                        <Zap className="w-6 h-6" />
+                      </div>
+                      <h4 className="text-lg font-display font-bold text-white">Pro'ya Yükselt</h4>
+                    </div>
+                    <p className="text-zinc-400 text-xs mb-6 leading-relaxed">
+                      Sınırsız mesaj, AI görsel üretimi ve uzman mentorluk için hemen Pro'ya geç!
+                    </p>
+                    <button 
+                      onClick={() => handleModeChange('SUBSCRIPTION')}
+                      className="w-full py-3 bg-white text-black font-black text-[10px] uppercase tracking-widest rounded-xl hover:bg-zinc-200 transition-all shadow-xl"
+                    >
+                      Planları Görüntüle
+                    </button>
+                  </div>
+                </motion.div>
+              )}
+              <div className="glass-card rounded-[2.5rem] p-8 flex flex-col items-center text-center relative overflow-hidden group">
+                <div className="absolute top-0 right-0 p-4">
+                  <button 
+                    onClick={handleLogout}
+                    className="p-2 text-zinc-600 hover:text-red-400 transition-colors"
+                  >
+                    <LogOut className="w-5 h-5" />
+                  </button>
+                </div>
+                
+                <div className="w-28 h-28 bg-zinc-900 border-4 border-emerald-500/20 rounded-full flex items-center justify-center text-emerald-400 mb-6 shadow-2xl relative">
+                  <User className="w-14 h-14" />
+                  <div className="absolute -bottom-1 -right-1 bg-emerald-500 text-black p-2 rounded-full shadow-lg">
+                    <ShieldCheck className="w-4 h-4" />
+                  </div>
+                </div>
+                
+                <h3 className="text-2xl font-display font-bold text-white mb-1">{profile?.name}</h3>
+                <p className="text-zinc-500 text-xs font-black uppercase tracking-widest mb-4">{profile?.email}</p>
+                
+                <div className={cn("px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest border", badge?.color)}>
+                  {badge?.name}
+                </div>
+
+                <div className="mt-8 w-full space-y-4">
+                  <div className="flex items-center justify-between text-xs font-bold uppercase tracking-widest text-zinc-500">
+                    <span>Seviye İlerlemesi</span>
+                    <span className="text-emerald-400">{profile?.level}</span>
+                  </div>
+                  <div className="h-2 w-full bg-zinc-800 rounded-full overflow-hidden">
+                    <motion.div 
+                      initial={{ width: 0 }}
+                      animate={{ width: `${(profile?.totalQuestions || 0) % 10 * 10}%` }}
+                      className="h-full bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.5)]"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="glass-card rounded-[2.5rem] p-8 space-y-6">
+                <h4 className="text-xs font-black uppercase tracking-widest text-zinc-500">Hesap Güvenliği</h4>
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 bg-blue-500/10 rounded-xl flex items-center justify-center">
+                        <Shield className="w-5 h-5 text-blue-400" />
+                      </div>
+                      <div>
+                        <div className="text-sm font-bold">2FA Koruması</div>
+                        <div className="text-[10px] text-zinc-500 uppercase font-black tracking-tighter">
+                          {profile?.twoFAEnabled ? 'Aktif' : 'Devre Dışı'}
+                        </div>
+                      </div>
+                    </div>
+                    {!profile?.twoFAEnabled && (
+                      <button 
+                        onClick={handleEnable2FA}
+                        className="text-[10px] font-black uppercase tracking-widest text-emerald-400 hover:text-emerald-300 transition-colors"
+                      >
+                        Aktif Et
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="lg:col-span-8 space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="glass-card rounded-[2.5rem] p-8 flex flex-col justify-between group">
+                  <div className="w-12 h-12 bg-emerald-500/10 rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
+                    <MessageSquare className="w-6 h-6 text-emerald-400" />
+                  </div>
+                  <div>
+                    <div className="text-4xl font-display font-bold text-white mb-1">{profile?.totalQuestions}</div>
+                    <div className="text-xs font-black uppercase tracking-widest text-zinc-500">Toplam Soru</div>
+                  </div>
+                </div>
+
+                <div className="glass-card rounded-[2.5rem] p-8 flex flex-col justify-between group">
+                  <div className="w-12 h-12 bg-amber-500/10 rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
+                    <Zap className="w-6 h-6 text-amber-400" />
+                  </div>
+                  <div>
+                    <div className="text-4xl font-display font-bold text-white mb-1">{profile?.stats?.quizScore || 0}</div>
+                    <div className="text-xs font-black uppercase tracking-widest text-zinc-500">Quiz Puanı ({profile?.stats?.quizCount || 0} Quiz)</div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="glass-card rounded-[2.5rem] p-8 md:p-12 space-y-8">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-2xl font-display font-bold">İlerleme Analizi</h3>
+                  <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-2">
+                      <div className="w-3 h-3 bg-emerald-500 rounded-full" />
+                      <span className="text-[10px] font-black uppercase tracking-widest text-zinc-500">Aktivite</span>
+                    </div>
+                  </div>
+                </div>
+                
+                <div className="h-[300px] w-full">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart
+                      data={[
+                        { name: 'Pzt', value: 4 },
+                        { name: 'Sal', value: 7 },
+                        { name: 'Çar', value: 5 },
+                        { name: 'Per', value: 9 },
+                        { name: 'Cum', value: 12 },
+                        { name: 'Cmt', value: 8 },
+                        { name: 'Paz', value: 15 },
+                      ]}
+                      margin={{ top: 10, right: 10, left: -20, bottom: 0 }}
+                    >
+                      <defs>
+                        <linearGradient id="colorValue" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#10b981" stopOpacity={0.3}/>
+                          <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#ffffff05" vertical={false} />
+                      <XAxis 
+                        dataKey="name" 
+                        stroke="#ffffff20" 
+                        fontSize={10} 
+                        tickLine={false}
+                        axisLine={false}
+                      />
+                      <YAxis 
+                        stroke="#ffffff20" 
+                        fontSize={10} 
+                        tickLine={false}
+                        axisLine={false}
+                      />
+                      <Tooltip 
+                        contentStyle={{ 
+                          backgroundColor: '#09090b', 
+                          border: '1px solid #ffffff10',
+                          borderRadius: '12px',
+                          fontSize: '12px',
+                          color: '#fff'
+                        }}
+                        itemStyle={{ color: '#10b981' }}
+                      />
+                      <Area 
+                        type="monotone" 
+                        dataKey="value" 
+                        stroke="#10b981" 
+                        strokeWidth={3}
+                        fillOpacity={1} 
+                        fill="url(#colorValue)" 
+                      />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div className="glass-card rounded-[2.5rem] p-8 flex flex-col justify-between group">
+                  <div className="w-12 h-12 bg-purple-500/10 rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
+                    <ImageIcon className="w-6 h-6 text-purple-400" />
+                  </div>
+                  <div>
+                    <div className="text-4xl font-display font-bold text-white mb-1">{profile?.stats?.imagesGenerated || 0}</div>
+                    <div className="text-xs font-black uppercase tracking-widest text-zinc-500">Görsel</div>
+                  </div>
+                </div>
+
+                <div className="glass-card rounded-[2.5rem] p-8 flex flex-col justify-between group">
+                  <div className="w-12 h-12 bg-blue-500/10 rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
+                    <Bug className="w-6 h-6 text-blue-400" />
+                  </div>
+                  <div>
+                    <div className="text-4xl font-display font-bold text-white mb-1">{profile?.stats?.bugsFixed || 0}</div>
+                    <div className="text-xs font-black uppercase tracking-widest text-zinc-500">Hata</div>
+                  </div>
+                </div>
+
+                <div className="glass-card rounded-[2.5rem] p-8 flex flex-col justify-between group">
+                  <div className="w-12 h-12 bg-indigo-500/10 rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
+                    <Github className="w-6 h-6 text-indigo-400" />
+                  </div>
+                  <div>
+                    <div className="text-4xl font-display font-bold text-white mb-1">{profile?.stats?.projectsShared || 0}</div>
+                    <div className="text-xs font-black uppercase tracking-widest text-zinc-500">Vitrinde</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    if (activeTab === 'modes') {
+      if (mode === 'SUBSCRIPTION') {
+        return (
+          <div className="p-4 md:p-8 max-w-6xl mx-auto space-y-12 pb-24 lg:pb-8">
+            <div className="text-center space-y-4">
+              <motion.div
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-500 text-[10px] font-black uppercase tracking-widest"
+              >
+                <Zap className="w-3 h-3" />
+                Premium Deneyim
+              </motion.div>
+              <h2 className="text-4xl md:text-5xl font-display font-bold bg-gradient-to-r from-amber-400 to-orange-500 bg-clip-text text-transparent">Üyelik Planları</h2>
+              <p className="text-zinc-400 max-w-2xl mx-auto text-sm md:text-base">Sana en uygun planı seç, teknolojide öne geç! Tüm ödemeler Shopier güvencesiyle yapılır ve lisans kodunuz anında e-postanıza iletilir.</p>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div className="glass p-8 rounded-[2.5rem] border border-white/5 flex flex-col relative overflow-hidden group">
+                <div className="mb-8">
+                  <h3 className="text-xl font-bold mb-2">Ücretsiz</h3>
+                  <div className="text-3xl font-bold text-white mb-1">0 TL</div>
+                  <p className="text-zinc-500 text-xs">Temel kullanım için ideal.</p>
+                </div>
+                <ul className="space-y-4 mb-8 flex-1">
+                  {[
+                    { text: 'Günlük 5 Mesaj', active: true },
+                    { text: 'Proje Üretici', active: true },
+                    { text: 'Kod Hata Ayıklama', active: true },
+                    { text: 'AI Görsel Üretici (2 Adet)', active: true },
+                    { text: 'AI Optimizasyon', active: false },
+                    { text: 'Canlı Sesli Sohbet', active: false },
+                  ].map((item, i) => (
+                    <li key={i} className={cn("flex items-center gap-3 text-sm", item.active ? "text-zinc-300" : "text-zinc-600")}>
+                      {item.active ? <Check className="w-4 h-4 text-emerald-500" /> : <X className="w-4 h-4" />}
+                      {item.text}
+                    </li>
+                  ))}
+                </ul>
+                <button disabled className="w-full py-4 rounded-2xl bg-zinc-800 text-zinc-500 font-bold text-sm cursor-not-allowed">
+                  Şu Anki Planın
+                </button>
+              </div>
+
+              <div className="glass p-8 rounded-[2.5rem] border border-blue-500/20 flex flex-col relative overflow-hidden group">
+                <div className="absolute top-0 right-0 bg-blue-500 text-white text-[10px] font-black px-4 py-1 rounded-bl-2xl uppercase tracking-widest">Popüler</div>
+                <div className="mb-8">
+                  <h3 className="text-xl font-bold mb-2 text-blue-400">Basit</h3>
+                  <div className="text-3xl font-bold text-white mb-1">54,99 TL</div>
+                  <p className="text-zinc-500 text-xs">Daha fazla soru sormak isteyenler için.</p>
+                </div>
+                <ul className="space-y-4 mb-8 flex-1">
+                  {[
+                    { text: 'Günlük 90 Mesaj', active: true },
+                    { text: 'Tüm Temel Modlar', active: true },
+                    { text: 'AI Görsel Üretici (20 Adet)', active: true },
+                    { text: 'Reklamsız Deneyim', active: true },
+                    { text: 'AI Optimizasyon', active: false },
+                    { text: 'Canlı Sesli Sohbet', active: false },
+                  ].map((item, i) => (
+                    <li key={i} className={cn("flex items-center gap-3 text-sm", item.active ? "text-zinc-300" : "text-zinc-600")}>
+                      {item.active ? <Check className="w-4 h-4 text-blue-500" /> : <X className="w-4 h-4" />}
+                      {item.text}
+                    </li>
+                  ))}
+                </ul>
+                <button 
+                  onClick={() => window.open('https://www.shopier.com/bitlisstudyo/44761101', '_blank')}
+                  className="w-full py-4 rounded-2xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-sm transition-all shadow-lg shadow-blue-500/20"
+                >
+                  Hemen Satın Al
+                </button>
+              </div>
+
+              <div className="bg-gradient-to-br from-amber-500/10 to-orange-600/10 p-8 rounded-[2.5rem] border border-amber-500/30 flex flex-col relative overflow-hidden group">
+                <div className="absolute top-0 right-0 bg-amber-500 text-black text-[10px] font-black px-4 py-1 rounded-bl-2xl uppercase tracking-widest">En Güçlü</div>
+                <div className="mb-8">
+                  <h3 className="text-xl font-bold mb-2 text-amber-400">Pro</h3>
+                  <div className="text-3xl font-bold text-white mb-1">169,99 TL</div>
+                  <p className="text-zinc-500 text-xs text-amber-500/60">Sınırları zorlayan teknoloji fatihleri için.</p>
+                </div>
+                <ul className="space-y-4 mb-8 flex-1">
+                  {[
+                    { text: 'Sınırsız Mesaj', active: true },
+                    { text: 'Sınırsız AI Görsel Üretici', active: true },
+                    { text: 'Gelişmiş AI Modelleri (3.1 Pro)', active: true },
+                    { text: 'Proje Yol Haritası & Mentorluk', active: true },
+                    { text: 'Canlı Sesli Sohbet', active: true },
+                    { text: 'Öncelikli Destek & Danışmanlık', active: true },
+                  ].map((item, i) => (
+                    <li key={i} className={cn("flex items-center gap-3 text-sm", item.active ? "text-zinc-300" : "text-zinc-600")}>
+                      {item.active ? <Check className="w-4 h-4 text-amber-500" /> : <X className="w-4 h-4" />}
+                      {item.text}
+                    </li>
+                  ))}
+                </ul>
+                <button 
+                  onClick={() => window.open('https://www.shopier.com/bitlisstudyo/44761166', '_blank')}
+                  className="w-full py-4 rounded-2xl bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-400 hover:to-orange-500 text-white font-bold text-sm transition-all shadow-lg shadow-amber-500/20"
+                >
+                  Pro'ya Geç
+                </button>
+              </div>
+            </div>
+
+            <div className="max-w-2xl mx-auto glass p-8 rounded-[2.5rem] border border-white/5 space-y-6">
+              <div className="text-center">
+                <h3 className="text-xl font-bold mb-2">Lisans Aktivasyonu</h3>
+                <p className="text-zinc-500 text-sm">Satın aldığın lisans kodunu aşağıya girerek üyeliğini anında başlatabilirsin.</p>
+              </div>
+              <div className="flex flex-col sm:flex-row gap-3">
+                <input 
+                  type="text" 
+                  value={licenseInput}
+                  onChange={(e) => setLicenseInput(e.target.value)}
+                  placeholder="TNP-XXXX-XXXX"
+                  className="flex-1 bg-zinc-800 border border-white/10 rounded-2xl px-6 py-4 text-white focus:outline-none focus:ring-2 focus:ring-amber-500/50 transition-all uppercase font-mono"
+                />
+                <button 
+                  onClick={handleLicenseActivation}
+                  className="bg-white text-black font-bold px-8 py-4 rounded-2xl hover:bg-zinc-200 transition-all"
+                >
+                  Aktif Et
+                </button>
+              </div>
+              {licenseError && <p className="text-red-400 text-xs text-center font-bold">{licenseError}</p>}
+            </div>
+          </div>
+        );
+      }
+      if (mode === 'FAQ') {
+        return (
+          <div className="p-4 md:p-8 max-w-4xl mx-auto space-y-12 pb-24 lg:pb-8">
+            <div className="flex items-center gap-4 mb-8">
+              <button onClick={() => handleModeChange('PROJECT_GEN')} className="p-2 hover:bg-zinc-800 rounded-xl text-zinc-500 transition-all">
+                <ArrowLeft className="w-6 h-6" />
+              </button>
+              <h2 className="text-3xl font-display font-bold">Sıkça Sorulan Sorular</h2>
+            </div>
+            <div className="space-y-4">
+              {[
+                { q: "DeneyapAI nedir?", a: "DeneyapAI, Bitlis Deneyap Atölyeleri öğrencileri ve teknoloji meraklıları için geliştirilmiş bir yapay zeka mentordur." },
+                { q: "Uygulama ücretli mi?", a: "Temel özellikler ücretsizdir, ancak günlük limitler bulunmaktadır." },
+                { q: "Lisans kodumu nasıl alırım?", a: "Shopier mağazamızdan satın alabilirsiniz." }
+              ].map((item, i) => (
+                <div key={i} className="glass p-6 rounded-3xl border border-white/5 space-y-3">
+                  <h4 className="text-lg font-bold text-white flex items-center gap-3">
+                    <HelpCircle className="w-4 h-4 text-blue-400" />
+                    {item.q}
+                  </h4>
+                  <p className="text-zinc-400 text-sm leading-relaxed">{item.a}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+      }
+      if (mode === 'PRIVACY') {
+        return (
+          <div className="p-4 md:p-8 max-w-4xl mx-auto space-y-12 pb-24 lg:pb-8">
+            <div className="flex items-center gap-4 mb-8">
+              <button onClick={() => handleModeChange('PROJECT_GEN')} className="p-2 hover:bg-zinc-800 rounded-xl text-zinc-500 transition-all">
+                <ArrowLeft className="w-6 h-6" />
+              </button>
+              <h2 className="text-3xl font-display font-bold">Gizlilik Politikası</h2>
+            </div>
+            <div className="prose prose-invert max-w-none text-zinc-400">
+              <p>Verileriniz yerel olarak saklanır ve sadece AI yanıtları için kullanılır.</p>
+            </div>
+          </div>
+        );
+      }
+      if (mode === 'TERMS') {
+        return (
+          <div className="p-4 md:p-8 max-w-4xl mx-auto space-y-12 pb-24 lg:pb-8">
+            <div className="flex items-center gap-4 mb-8">
+              <button onClick={() => handleModeChange('PROJECT_GEN')} className="p-2 hover:bg-zinc-800 rounded-xl text-zinc-500 transition-all">
+                <ArrowLeft className="w-6 h-6" />
+              </button>
+              <h2 className="text-3xl font-display font-bold">Hizmet Şartları</h2>
+            </div>
+            <div className="prose prose-invert max-w-none text-zinc-400">
+              <p>Uygulamayı yasalara uygun şekilde kullanmayı taahhüt edersiniz.</p>
+            </div>
+          </div>
+        );
+      }
+    }
+
+    if (activeTab === 'chat') {
+      if (mode === 'LEADERBOARD') {
+        return (
+          <div className="p-4 md:p-12 max-w-6xl mx-auto pb-64">
+            <Leaderboard profile={profile} onUpgrade={() => handleModeChange('SUBSCRIPTION')} />
+          </div>
+        );
+      }
+
+      if (mode === 'QUIZ') {
+        return (
+          <div className="p-4 md:p-12 max-w-4xl mx-auto pb-64">
+            <div className="text-center space-y-8">
+              <div className="w-20 h-20 bg-amber-500/10 rounded-3xl flex items-center justify-center mx-auto shadow-inner">
+                <Award className="w-10 h-10 text-amber-500" />
+              </div>
+              <h2 className="text-4xl font-display font-bold">Bilgi Yarışması</h2>
+              
+              {showQuizResult ? (
+                <div className="glass-card rounded-[2.5rem] p-12 space-y-8">
+                  <div className="text-6xl font-display font-bold text-amber-500">{quizScore} / {quizQuestions.length}</div>
+                  <h3 className="text-2xl font-bold">Harika İş Çıkardın!</h3>
+                  <p className="text-zinc-400">Puanların profilinize eklendi. Liderlik tablosunda yükselmek için daha fazla quiz çöz!</p>
+                  <button 
+                    onClick={() => { setShowQuizResult(false); setMode('PROJECT_GEN'); }}
+                    className="bg-white text-black font-black px-8 py-4 rounded-2xl uppercase tracking-widest text-xs"
+                  >
+                    Ana Sayfaya Dön
+                  </button>
+                </div>
+              ) : quizQuestions.length > 0 ? (
+                <div className="glass-card rounded-[2.5rem] p-8 md:p-12 space-y-8 text-left">
+                  <div className="flex justify-between items-center">
+                    <span className="text-[10px] font-black uppercase tracking-widest text-zinc-500">Soru {currentQuizIdx + 1} / {quizQuestions.length}</span>
+                    <span className="text-[10px] font-black uppercase tracking-widest text-amber-500">Puan: {quizScore}</span>
+                  </div>
+                  <h3 className="text-2xl font-bold text-white leading-tight">{quizQuestions[currentQuizIdx].question}</h3>
+                  <div className="grid grid-cols-1 gap-4">
+                    {quizQuestions[currentQuizIdx].options.map((opt, i) => (
+                      <button 
+                        key={i}
+                        onClick={() => handleQuizAnswer(i)}
+                        className="w-full p-6 bg-white/5 border border-white/10 rounded-2xl text-left hover:bg-white/10 hover:border-amber-500/50 transition-all group"
+                      >
+                        <div className="flex items-center gap-4">
+                          <div className="w-8 h-8 rounded-lg bg-zinc-800 flex items-center justify-center text-xs font-bold group-hover:bg-amber-500 group-hover:text-black transition-colors">
+                            {String.fromCharCode(65 + i)}
+                          </div>
+                          <span className="text-zinc-300 group-hover:text-white font-medium">{opt}</span>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <div className="py-20 flex flex-col items-center gap-6">
+                  <RefreshCw className="w-12 h-12 text-amber-500 animate-spin" />
+                  <p className="text-zinc-500 font-medium">Sorular hazırlanıyor...</p>
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      }
+
+      if (mode === 'SHOWCASE') {
+        return (
+          <div className="p-4 md:p-12 max-w-7xl mx-auto pb-64 space-y-12">
+            <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
+              <div className="space-y-4">
+                <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-purple-500/10 border border-purple-500/20 text-purple-400 text-[10px] font-black uppercase tracking-widest">
+                  <Star className="w-3 h-3" />
+                  Topluluk Vitrini
+                </div>
+                <h2 className="text-4xl md:text-5xl font-display font-bold text-white tracking-tight">İlham Veren Projeler</h2>
+                <p className="text-zinc-500 max-w-xl">Diğer teknoloji fatihlerinin neler inşa ettiğini gör ve kendi projeni paylaş.</p>
+              </div>
+              <button 
+                onClick={() => setShowShowcaseModal(true)}
+                className="bg-purple-500 hover:bg-purple-400 text-white font-black px-8 py-4 rounded-2xl uppercase tracking-widest text-xs shadow-xl shadow-purple-500/20 flex items-center gap-3"
+              >
+                <Share2 className="w-4 h-4" />
+                Projemi Paylaş
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+              {showcaseProjects.map((project) => (
+                <motion.div 
+                  key={project.id}
+                  whileHover={{ y: -10 }}
+                  className="glass-card rounded-[2.5rem] overflow-hidden group border-white/5 hover:border-purple-500/30 transition-all cursor-pointer"
+                  onClick={() => setSelectedProject(project)}
+                >
+                  <div className="aspect-video relative overflow-hidden">
+                    <img src={project.image} alt={project.title} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" />
+                    <div className="absolute top-4 right-4 px-3 py-1 bg-black/60 backdrop-blur-md rounded-full text-[10px] font-black uppercase tracking-widest text-white border border-white/10">
+                      {project.category}
+                    </div>
+                  </div>
+                  <div className="p-8 space-y-4">
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-xl font-bold text-white group-hover:text-purple-400 transition-colors">{project.title}</h3>
+                      <div className="flex items-center gap-1.5 text-zinc-500">
+                        <Star className="w-4 h-4 fill-amber-500 text-amber-500" />
+                        <span className="text-xs font-bold">{project.likes}</span>
+                      </div>
+                    </div>
+                    <p className="text-zinc-500 text-sm line-clamp-2 leading-relaxed">{project.description}</p>
+                    <div className="pt-4 border-t border-white/5 flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-lg bg-zinc-800 flex items-center justify-center text-xs font-bold text-zinc-400">
+                        {project.author[0]}
+                      </div>
+                      <span className="text-xs font-bold text-zinc-400">{project.author}</span>
+                    </div>
+                  </div>
+                </motion.div>
+              ))}
+            </div>
+          </div>
+        );
+      }
+
+      if (mode === 'IMAGE_GEN') {
+        return (
+          <div className="p-4 md:p-12 max-w-6xl mx-auto pb-64 space-y-8">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-3xl font-display font-bold">AI Görsel Üretici</h2>
+                <p className="text-zinc-500 text-sm">Hayalindeki teknolojik tasarımı gerçeğe dönüştür.</p>
+              </div>
+              <div className="px-4 py-2 bg-purple-500/10 border border-purple-500/20 rounded-xl">
+                <span className="text-[10px] font-black uppercase tracking-widest text-purple-400">
+                  Kalan Hak: {profile?.subscriptionTier === 'PRO' ? 'Sınırsız' : profile?.subscriptionTier === 'BASIC' ? 25 - ((profile?.stats as any)?.imagesGenerated || 0) : 2 - ((profile?.stats as any)?.imagesGenerated || 0)}
+                </span>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {generatedImages.length === 0 ? (
+                <div className="col-span-full py-20 text-center glass-card rounded-[2.5rem] border-dashed border-white/5">
+                  <ImageIcon className="w-12 h-12 text-zinc-700 mx-auto mb-4" />
+                  <p className="text-zinc-500 text-sm">Henüz bir görsel üretmedin. Aşağıdaki kutuya hayalini yaz!</p>
+                </div>
+              ) : (
+                generatedImages.map((img, i) => (
+                  <motion.div 
+                    key={i}
+                    initial={{ opacity: 0, scale: 0.9 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    className="glass-card rounded-[2rem] overflow-hidden group relative"
+                  >
+                    <img src={img.url} alt={img.prompt} className="w-full aspect-square object-cover transition-transform group-hover:scale-110" referrerPolicy="no-referrer" />
+                    <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col justify-end p-6">
+                      <p className="text-white text-xs font-medium line-clamp-2 mb-4">{img.prompt}</p>
+                      <a href={img.url} download={`deneyapai-${i}.png`} className="w-full py-2 bg-white text-black text-center rounded-xl text-[10px] font-black uppercase tracking-widest">İndir</a>
+                    </div>
+                  </motion.div>
+                ))
+              )}
+            </div>
+          </div>
+        );
+      }
+
+      if (mode === 'DEBUGGER') {
+        return (
+          <div className="p-4 md:p-12 max-w-6xl mx-auto pb-64 space-y-8">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 bg-blue-500/10 rounded-2xl flex items-center justify-center">
+                <Bug className="text-blue-400 w-6 h-6" />
+              </div>
+              <div>
+                <h2 className="text-3xl font-display font-bold">Hata Ayıklayıcı</h2>
+                <p className="text-zinc-500 text-sm">Kodundaki hataları bulalım ve birlikte düzeltelim.</p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+              <div className="space-y-4">
+                <h4 className="text-[10px] font-black uppercase tracking-widest text-zinc-500 ml-2">Hatalı Kodun</h4>
+                <div className="glass-card rounded-[2rem] p-6 min-h-[300px] bg-zinc-900/50 border-white/5">
+                  <pre className="text-sm font-mono text-zinc-400 whitespace-pre-wrap">
+                    {messages.filter(m => m.role === 'user').pop()?.content || "// Kodunu aşağıya yapıştır..."}
+                  </pre>
+                </div>
+              </div>
+              <div className="space-y-4">
+                <h4 className="text-[10px] font-black uppercase tracking-widest text-emerald-500 ml-2">Çözüm ve Öneriler</h4>
+                <div className="glass-card rounded-[2rem] p-6 min-h-[300px] border-emerald-500/20">
+                  <div className="markdown-body text-sm">
+                    <Markdown>
+                      {messages.filter(m => m.role === 'assistant').pop()?.content || "Henüz bir analiz yapılmadı."}
+                    </Markdown>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      }
+
+      if (mode === 'PROJECT_GEN') {
+        return (
+          <div className="p-4 md:p-12 max-w-6xl mx-auto pb-64 space-y-8">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 bg-emerald-500/10 rounded-2xl flex items-center justify-center">
+                <Lightbulb className="text-emerald-400 w-6 h-6" />
+              </div>
+              <div>
+                <h2 className="text-3xl font-display font-bold">Proje Üretici</h2>
+                <p className="text-zinc-500 text-sm">Malzemelerini yaz, sana en uygun projeyi tasarlayalım.</p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 gap-6">
+              {messages.filter(m => m.role === 'assistant').length === 0 ? (
+                <div className="py-20 text-center glass-card rounded-[2.5rem] border-dashed border-white/5">
+                  <Sparkles className="w-12 h-12 text-emerald-500/20 mx-auto mb-4" />
+                  <p className="text-zinc-500 text-sm">Hangi malzemelerin var? Örn: "Arduino, LDR, Buzzer"</p>
+                </div>
+              ) : (
+                <div className="glass-card rounded-[2.5rem] p-8 md:p-12">
+                  <div className="markdown-body">
+                    <Markdown>
+                      {messages.filter(m => m.role === 'assistant').pop()?.content || ""}
+                    </Markdown>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      }
+
+      if (mode === 'DAILY_CHALLENGE') {
+        return (
+          <div className="p-4 md:p-12 max-w-4xl mx-auto pb-64 space-y-8">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 bg-amber-500/10 rounded-2xl flex items-center justify-center">
+                <Sparkles className="text-amber-400 w-6 h-6" />
+              </div>
+              <div>
+                <h2 className="text-3xl font-display font-bold">Günün Görevi</h2>
+                <p className="text-zinc-500 text-sm">Her gün yeni bir meydan okuma, yeni bir başarı!</p>
+              </div>
+            </div>
+
+            <div className="max-w-2xl mx-auto">
+              {messages.filter(m => m.role === 'assistant').length === 0 ? (
+                <div className="glass-card rounded-[2.5rem] p-12 text-center space-y-6">
+                  <div className="w-20 h-20 bg-amber-500/10 rounded-full flex items-center justify-center mx-auto">
+                    <Zap className="w-10 h-10 text-amber-500" />
+                  </div>
+                  <h3 className="text-2xl font-display font-bold">Bugünkü Görevini Almaya Hazır Mısın?</h3>
+                  <p className="text-zinc-500">Aşağıdaki butona basarak veya "Günün görevini ver" yazarak başlayabilirsin.</p>
+                  <button 
+                    onClick={() => { setInput('Günün görevini ver'); handleSubmit({ preventDefault: () => {} } as any); }}
+                    className="bg-amber-500 text-black font-black px-8 py-4 rounded-2xl uppercase tracking-widest text-xs shadow-xl shadow-amber-500/20"
+                  >
+                    Görevi Başlat
+                  </button>
+                </div>
+              ) : (
+                <motion.div 
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="glass-card rounded-[2.5rem] p-8 md:p-12 border-amber-500/20"
+                >
+                  <div className="markdown-body">
+                    <Markdown>
+                      {messages.filter(m => m.role === 'assistant').pop()?.content || ""}
+                    </Markdown>
+                  </div>
+                </motion.div>
+              )}
+            </div>
+          </div>
+        );
+      }
+
+      if (mode === 'TECH_NEWS') {
+        return (
+          <div className="p-4 md:p-12 max-w-6xl mx-auto pb-64 space-y-8">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 bg-blue-500/10 rounded-2xl flex items-center justify-center">
+                <FileText className="text-blue-400 w-6 h-6" />
+              </div>
+              <div>
+                <h2 className="text-3xl font-display font-bold">Teknoloji Haberleri</h2>
+                <p className="text-zinc-500 text-sm">Dünyadan ve Türkiye'den en güncel teknoloji özetleri.</p>
+              </div>
+            </div>
+
+            <div className="space-y-6">
+              {messages.filter(m => m.role === 'assistant').length === 0 ? (
+                <div className="py-20 text-center glass-card rounded-[2.5rem] border-dashed border-white/5">
+                  <Radio className="w-12 h-12 text-blue-500/20 mx-auto mb-4" />
+                  <p className="text-zinc-500 text-sm">Gündemi yakalamak için "Son haberleri getir" yazabilirsin.</p>
+                </div>
+              ) : (
+                <div className="glass-card rounded-[2.5rem] p-8 md:p-12">
+                  <div className="markdown-body">
+                    <Markdown>
+                      {messages.filter(m => m.role === 'assistant').pop()?.content || ""}
+                    </Markdown>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      }
+
+      if (mode === 'LIVE_VOICE') {
+        return (
+          <div className="flex flex-col items-center justify-center h-full text-zinc-500 gap-4">
+            <Radio className="w-12 h-12 animate-pulse text-red-500/50" />
+            <p className="text-sm font-medium">Canlı Sesli Sohbet Modu Aktif</p>
+            <button 
+              onClick={() => setMode('PROJECT_GEN')}
+              className="px-6 py-2 bg-zinc-800 hover:bg-zinc-700 text-white rounded-xl text-xs font-bold transition-all"
+            >
+              Sohbetten Çık
+            </button>
+          </div>
+        );
+      }
+
+      // Default Chat View
+      return (
+        <div className="p-4 md:p-12 max-w-6xl mx-auto space-y-12 pb-64">
+          {messages.length === 1 ? (
+            <div className="space-y-12">
+              <div className="space-y-4 text-center md:text-left">
+                <motion.h2 
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="text-4xl md:text-6xl font-display font-bold text-white tracking-tight"
+                >
+                  Selam, <span className="text-emerald-400">{profile?.name}</span>
+                </motion.h2>
+                <motion.p 
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.1 }}
+                  className="text-zinc-500 text-lg md:text-xl max-w-2xl"
+                >
+                  Teknoloji yolculuğunda bugün ne inşa etmek istersin? Senin için en gelişmiş araçları hazırladım.
+                </motion.p>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <motion.div 
+                  whileHover={{ scale: 1.02 }}
+                  onClick={() => handleModeChange('PROJECT_GEN')}
+                  className="md:col-span-2 bento-item group cursor-pointer border-emerald-500/20 bg-emerald-500/5"
+                >
+                  <div className="flex flex-col h-full justify-between gap-8">
+                    <div className="w-14 h-14 bg-emerald-500 text-black rounded-2xl flex items-center justify-center shadow-lg shadow-emerald-500/20">
+                      <Lightbulb className="w-8 h-8" />
+                    </div>
+                    <div>
+                      <h3 className="text-2xl font-display font-bold text-white mb-2">Proje Üretici</h3>
+                      <p className="text-zinc-400 text-sm">Elindeki malzemeleri söyle, sana en yaratıcı Deneyap projesini tasarlayayım.</p>
+                    </div>
+                  </div>
+                </motion.div>
+
+                <motion.div 
+                  whileHover={{ scale: 1.02 }}
+                  onClick={() => handleModeChange('IMAGE_GEN')}
+                  className="bento-item group cursor-pointer border-purple-500/20 bg-purple-500/5"
+                >
+                  <div className="flex flex-col h-full justify-between gap-8">
+                    <div className="w-14 h-14 bg-purple-500 text-white rounded-2xl flex items-center justify-center shadow-lg shadow-purple-500/20">
+                      <ImageIcon className="w-8 h-8" />
+                    </div>
+                    <div>
+                      <h3 className="text-2xl font-display font-bold text-white mb-2">Görsel Üretici</h3>
+                      <p className="text-zinc-400 text-sm">Hayalindeki teknolojik tasarımı gerçeğe dönüştür.</p>
+                    </div>
+                  </div>
+                </motion.div>
+
+                <motion.div 
+                  whileHover={{ scale: 1.02 }}
+                  onClick={() => handleStartQuiz()}
+                  className="bento-item group cursor-pointer border-amber-500/20 bg-amber-500/5"
+                >
+                  <div className="flex flex-col h-full justify-between gap-8">
+                    <div className="w-14 h-14 bg-amber-500 text-black rounded-2xl flex items-center justify-center shadow-lg shadow-amber-500/20">
+                      <Trophy className="w-8 h-8" />
+                    </div>
+                    <div>
+                      <h3 className="text-2xl font-display font-bold text-white mb-2">Bilgi Quiz</h3>
+                      <p className="text-zinc-400 text-sm">Bilgini test et, puanları topla ve liderliğe oyna.</p>
+                    </div>
+                  </div>
+                </motion.div>
+
+                <motion.div 
+                  whileHover={{ scale: 1.02 }}
+                  onClick={() => handleModeChange('DEBUGGER')}
+                  className="md:col-span-2 bento-item group cursor-pointer border-blue-500/20 bg-blue-500/5"
+                >
+                  <div className="flex flex-col h-full justify-between gap-8">
+                    <div className="w-14 h-14 bg-blue-500 text-white rounded-2xl flex items-center justify-center shadow-lg shadow-blue-500/20">
+                      <Bug className="w-8 h-8" />
+                    </div>
+                    <div>
+                      <h3 className="text-2xl font-display font-bold text-white mb-2">Kod Debugger</h3>
+                      <p className="text-zinc-400 text-sm">Hatalı kodlarını yapıştır, saniyeler içinde çözümünü bulalım.</p>
+                    </div>
+                  </div>
+                </motion.div>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-12">
+              {showDailyTip && (
+                <motion.div 
+                  initial={{ opacity: 0, y: -20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="glass-card rounded-[2rem] p-8 relative overflow-hidden group border-emerald-500/20"
+                >
+                  <div className="absolute top-0 right-0 p-4">
+                    <button 
+                      onClick={() => setShowDailyTip(false)}
+                      className="p-2 hover:bg-white/5 rounded-xl text-zinc-600 hover:text-white transition-all"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                  <div className="flex items-start gap-6">
+                    <div className="w-14 h-14 bg-emerald-500/10 rounded-2xl flex items-center justify-center shrink-0 shadow-inner">
+                      <Lightbulb className="text-emerald-400 w-7 h-7" />
+                    </div>
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] font-black uppercase tracking-[0.2em] text-emerald-400">Günün İpucu</span>
+                        <span className="w-1 h-1 bg-zinc-700 rounded-full"></span>
+                        <span className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-500">Teknoloji Rehberi</span>
+                      </div>
+                      <p className="text-base text-zinc-300 leading-relaxed font-medium">
+                        {DAILY_TIPS[new Date().getDate() % DAILY_TIPS.length]}
+                      </p>
+                    </div>
+                  </div>
+                </motion.div>
+              )}
+              
+              <AnimatePresence initial={false}>
+                {messages.map((msg, idx) => (
+                  <motion.div
+                    key={idx}
+                    initial={{ opacity: 0, y: 20, scale: 0.98 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    className={cn(
+                      "flex w-full mb-8",
+                      msg.role === 'user' ? "justify-end" : "justify-start"
+                    )}
+                  >
+                    <div className={cn(
+                      "max-w-[90%] md:max-w-[85%] rounded-[2.5rem] p-6 md:p-10 shadow-2xl relative group transition-all duration-500",
+                      msg.role === 'user' 
+                        ? "bg-white text-black rounded-tr-none shadow-white/5" 
+                        : "glass-card rounded-tl-none border-white/5"
+                    )}>
+                      {msg.role === 'assistant' && (
+                        <div className="flex items-center gap-4 mb-6">
+                          <div className="w-10 h-10 bg-emerald-500 rounded-2xl flex items-center justify-center shadow-xl shadow-emerald-500/20">
+                            <Cpu className="w-5 h-5 text-white" />
+                          </div>
+                          <div>
+                            <span className="text-[10px] font-black uppercase tracking-[0.2em] text-emerald-400 block">DeneyapAI Mentor</span>
+                            <span className="text-[9px] text-zinc-500 font-bold uppercase tracking-widest">Sistem v5.0 • {new Date(msg.timestamp).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })}</span>
+                          </div>
+                        </div>
+                      )}
+
+                      {msg.role === 'user' && (
+                        <div className="flex items-center gap-3 mb-4 opacity-40">
+                          <User className="w-4 h-4" />
+                          <span className="text-[9px] font-black uppercase tracking-widest">Siz • {new Date(msg.timestamp).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })}</span>
+                        </div>
+                      )}
+
+                      <div className="markdown-body text-base md:text-lg leading-relaxed">
+                        <Markdown>{msg.content}</Markdown>
+                      </div>
+
+                      {msg.role === 'assistant' && (
+                        <div className="mt-8 pt-6 border-t border-white/5 flex items-center justify-between opacity-0 group-hover:opacity-100 transition-opacity">
+                          <div className="flex items-center gap-4">
+                            <button 
+                              onClick={() => handleCopy(msg.content, idx)}
+                              className="p-2 hover:bg-white/5 rounded-xl text-zinc-500 hover:text-white transition-all flex items-center gap-2"
+                            >
+                              {copiedIdx === idx ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
+                              <span className="text-[10px] font-black uppercase tracking-widest">Kopyala</span>
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </motion.div>
+                ))}
+              </AnimatePresence>
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    return null;
+  };
+
   if (isAuthLoading) {
     return (
       <div className="fixed inset-0 bg-zinc-950 flex flex-col items-center justify-center z-[200]">
@@ -2148,1087 +3186,6 @@ export default function App() {
         <div className="flex-1 overflow-y-auto custom-scrollbar">
           {renderTabContent()}
         </div>
-                {mode === 'IMAGE_GEN' && (
-                  <div className="space-y-8">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <h2 className="text-3xl font-display font-bold">AI Görsel Üretici</h2>
-                        <p className="text-zinc-500 text-sm">Hayalindeki teknolojik tasarımı gerçeğe dönüştür.</p>
-                      </div>
-                      <div className="px-4 py-2 bg-purple-500/10 border border-purple-500/20 rounded-xl">
-                        <span className="text-[10px] font-black uppercase tracking-widest text-purple-400">
-                          Kalan Hak: {profile?.subscriptionTier === 'PRO' ? 'Sınırsız' : profile?.subscriptionTier === 'BASIC' ? 25 - ((profile?.stats as any)?.imagesGenerated || 0) : 2 - ((profile?.stats as any)?.imagesGenerated || 0)}
-                        </span>
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                      {generatedImages.length === 0 ? (
-                        <div className="col-span-full py-20 text-center glass-card rounded-[2.5rem] border-dashed border-white/5">
-                          <ImageIcon className="w-12 h-12 text-zinc-700 mx-auto mb-4" />
-                          <p className="text-zinc-500 text-sm">Henüz bir görsel üretmedin. Aşağıdaki kutuya hayalini yaz!</p>
-                        </div>
-                      ) : (
-                        generatedImages.map((img, i) => (
-                          <motion.div 
-                            key={i}
-                            initial={{ opacity: 0, scale: 0.9 }}
-                            animate={{ opacity: 1, scale: 1 }}
-                            className="glass-card rounded-[2rem] overflow-hidden group relative"
-                          >
-                            <img src={img.url} alt={img.prompt} className="w-full aspect-square object-cover transition-transform group-hover:scale-110" referrerPolicy="no-referrer" />
-                            <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col justify-end p-6">
-                              <p className="text-white text-xs font-medium line-clamp-2 mb-4">{img.prompt}</p>
-                              <a href={img.url} download={`deneyapai-${i}.png`} className="w-full py-2 bg-white text-black text-center rounded-xl text-[10px] font-black uppercase tracking-widest">İndir</a>
-                            </div>
-                          </motion.div>
-                        ))
-                      )}
-                    </div>
-                  </div>
-                )}
-
-                {mode === 'DEBUGGER' && (
-                  <div className="space-y-8">
-                    <div className="flex items-center gap-4">
-                      <div className="w-12 h-12 bg-blue-500/10 rounded-2xl flex items-center justify-center">
-                        <Bug className="text-blue-400 w-6 h-6" />
-                      </div>
-                      <div>
-                        <h2 className="text-3xl font-display font-bold">Hata Ayıklayıcı</h2>
-                        <p className="text-zinc-500 text-sm">Kodundaki hataları bulalım ve birlikte düzeltelim.</p>
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                      <div className="space-y-4">
-                        <h4 className="text-[10px] font-black uppercase tracking-widest text-zinc-500 ml-2">Hatalı Kodun</h4>
-                        <div className="glass-card rounded-[2rem] p-6 min-h-[300px] bg-zinc-900/50 border-white/5">
-                          <pre className="text-sm font-mono text-zinc-400 whitespace-pre-wrap">
-                            {messages.filter(m => m.role === 'user').pop()?.content || "// Kodunu aşağıya yapıştır..."}
-                          </pre>
-                        </div>
-                      </div>
-                      <div className="space-y-4">
-                        <h4 className="text-[10px] font-black uppercase tracking-widest text-emerald-500 ml-2">Çözüm ve Öneriler</h4>
-                        <div className="glass-card rounded-[2rem] p-6 min-h-[300px] border-emerald-500/20">
-                          <div className="markdown-body text-sm">
-                            <Markdown>
-                              {messages.filter(m => m.role === 'assistant').pop()?.content || "Henüz bir analiz yapılmadı."}
-                            </Markdown>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {mode === 'PROJECT_GEN' && (
-                  <div className="space-y-8">
-                    <div className="flex items-center gap-4">
-                      <div className="w-12 h-12 bg-emerald-500/10 rounded-2xl flex items-center justify-center">
-                        <Lightbulb className="text-emerald-400 w-6 h-6" />
-                      </div>
-                      <div>
-                        <h2 className="text-3xl font-display font-bold">Proje Üretici</h2>
-                        <p className="text-zinc-500 text-sm">Malzemelerini yaz, sana en uygun projeyi tasarlayalım.</p>
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-1 gap-6">
-                      {messages.filter(m => m.role === 'assistant').length === 0 ? (
-                        <div className="py-20 text-center glass-card rounded-[2.5rem] border-dashed border-white/5">
-                          <Sparkles className="w-12 h-12 text-emerald-500/20 mx-auto mb-4" />
-                          <p className="text-zinc-500 text-sm">Hangi malzemelerin var? Örn: "Arduino, LDR, Buzzer"</p>
-                        </div>
-                      ) : (
-                        <div className="glass-card rounded-[2.5rem] p-8 md:p-12">
-                          <div className="markdown-body">
-                            <Markdown>
-                              {messages.filter(m => m.role === 'assistant').pop()?.content || ""}
-                            </Markdown>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )}
-
-                {mode === 'DAILY_CHALLENGE' && (
-                  <div className="space-y-8">
-                    <div className="flex items-center gap-4">
-                      <div className="w-12 h-12 bg-amber-500/10 rounded-2xl flex items-center justify-center">
-                        <Sparkles className="text-amber-400 w-6 h-6" />
-                      </div>
-                      <div>
-                        <h2 className="text-3xl font-display font-bold">Günün Görevi</h2>
-                        <p className="text-zinc-500 text-sm">Her gün yeni bir meydan okuma, yeni bir başarı!</p>
-                      </div>
-                    </div>
-
-                    <div className="max-w-2xl mx-auto">
-                      {messages.filter(m => m.role === 'assistant').length === 0 ? (
-                        <div className="glass-card rounded-[2.5rem] p-12 text-center space-y-6">
-                          <div className="w-20 h-20 bg-amber-500/10 rounded-full flex items-center justify-center mx-auto">
-                            <Zap className="w-10 h-10 text-amber-500" />
-                          </div>
-                          <h3 className="text-2xl font-display font-bold">Bugünkü Görevini Almaya Hazır Mısın?</h3>
-                          <p className="text-zinc-500">Aşağıdaki butona basarak veya "Günün görevini ver" yazarak başlayabilirsin.</p>
-                          <button 
-                            onClick={() => { setInput('Günün görevini ver'); handleSubmit({ preventDefault: () => {} } as any); }}
-                            className="bg-amber-500 text-black font-black px-8 py-4 rounded-2xl uppercase tracking-widest text-xs shadow-xl shadow-amber-500/20"
-                          >
-                            Görevi Başlat
-                          </button>
-                        </div>
-                      ) : (
-                        <motion.div 
-                          initial={{ opacity: 0, y: 20 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          className="glass-card rounded-[2.5rem] p-8 md:p-12 border-amber-500/20"
-                        >
-                          <div className="markdown-body">
-                            <Markdown>
-                              {messages.filter(m => m.role === 'assistant').pop()?.content || ""}
-                            </Markdown>
-                          </div>
-                        </motion.div>
-                      )}
-                    </div>
-                  </div>
-                )}
-
-                {mode === 'TECH_NEWS' && (
-                  <div className="space-y-8">
-                    <div className="flex items-center gap-4">
-                      <div className="w-12 h-12 bg-blue-500/10 rounded-2xl flex items-center justify-center">
-                        <FileText className="text-blue-400 w-6 h-6" />
-                      </div>
-                      <div>
-                        <h2 className="text-3xl font-display font-bold">Teknoloji Haberleri</h2>
-                        <p className="text-zinc-500 text-sm">Dünyadan ve Türkiye'den en güncel teknoloji özetleri.</p>
-                      </div>
-                    </div>
-
-                    <div className="space-y-6">
-                      {messages.filter(m => m.role === 'assistant').length === 0 ? (
-                        <div className="py-20 text-center glass-card rounded-[2.5rem] border-dashed border-white/5">
-                          <Radio className="w-12 h-12 text-blue-500/20 mx-auto mb-4" />
-                          <p className="text-zinc-500 text-sm">Gündemi yakalamak için "Son haberleri getir" yazabilirsin.</p>
-                        </div>
-                      ) : (
-                        <div className="glass-card rounded-[2.5rem] p-8 md:p-12">
-                          <div className="markdown-body">
-                            <Markdown>
-                              {messages.filter(m => m.role === 'assistant').pop()?.content || ""}
-                            </Markdown>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )}
-              </div>
-            ) : mode === 'LIVE_VOICE' ? (
-              <div className="flex flex-col items-center justify-center h-full text-zinc-500 gap-4">
-                <Radio className="w-12 h-12 animate-pulse text-red-500/50" />
-                <p className="text-sm font-medium">Canlı Sesli Sohbet Modu Aktif</p>
-                <button 
-                  onClick={() => setMode('PROJECT_GEN')}
-                  className="px-6 py-2 bg-zinc-800 hover:bg-zinc-700 text-white rounded-xl text-xs font-bold transition-all"
-                >
-                  Sohbetten Çık
-                </button>
-              </div>
-            ) : (
-              <div className="p-4 md:p-12 max-w-6xl mx-auto space-y-12 pb-64">
-                {messages.length === 1 ? (
-                  <div className="space-y-12">
-                    <div className="space-y-4 text-center md:text-left">
-                      <motion.h2 
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        className="text-4xl md:text-6xl font-display font-bold text-white tracking-tight"
-                      >
-                        Selam, <span className="text-emerald-400">{profile?.name}</span>
-                      </motion.h2>
-                      <motion.p 
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: 0.1 }}
-                        className="text-zinc-500 text-lg md:text-xl max-w-2xl"
-                      >
-                        Teknoloji yolculuğunda bugün ne inşa etmek istersin? Senin için en gelişmiş araçları hazırladım.
-                      </motion.p>
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                      <motion.div 
-                        whileHover={{ scale: 1.02 }}
-                        onClick={() => handleModeChange('PROJECT_GEN')}
-                        className="md:col-span-2 bento-item group cursor-pointer border-emerald-500/20 bg-emerald-500/5"
-                      >
-                        <div className="flex flex-col h-full justify-between gap-8">
-                          <div className="w-14 h-14 bg-emerald-500 text-black rounded-2xl flex items-center justify-center shadow-lg shadow-emerald-500/20">
-                            <Lightbulb className="w-8 h-8" />
-                          </div>
-                          <div>
-                            <h3 className="text-2xl font-display font-bold text-white mb-2">Proje Üretici</h3>
-                            <p className="text-zinc-400 text-sm">Elindeki malzemeleri söyle, sana en yaratıcı Deneyap projesini tasarlayayım.</p>
-                          </div>
-                        </div>
-                      </motion.div>
-
-                      <motion.div 
-                        whileHover={{ scale: 1.02 }}
-                        onClick={() => handleModeChange('IMAGE_GEN')}
-                        className="bento-item group cursor-pointer border-purple-500/20 bg-purple-500/5"
-                      >
-                        <div className="flex flex-col h-full justify-between gap-8">
-                          <div className="w-14 h-14 bg-purple-500 text-white rounded-2xl flex items-center justify-center shadow-lg shadow-purple-500/20">
-                            <ImageIcon className="w-8 h-8" />
-                          </div>
-                          <div>
-                            <h3 className="text-2xl font-display font-bold text-white mb-2">Görsel Üretici</h3>
-                            <p className="text-zinc-400 text-sm">Hayalindeki teknolojik tasarımı gerçeğe dönüştür.</p>
-                          </div>
-                        </div>
-                      </motion.div>
-
-                      <motion.div 
-                        whileHover={{ scale: 1.02 }}
-                        onClick={() => handleStartQuiz()}
-                        className="bento-item group cursor-pointer border-amber-500/20 bg-amber-500/5"
-                      >
-                        <div className="flex flex-col h-full justify-between gap-8">
-                          <div className="w-14 h-14 bg-amber-500 text-black rounded-2xl flex items-center justify-center shadow-lg shadow-amber-500/20">
-                            <Trophy className="w-8 h-8" />
-                          </div>
-                          <div>
-                            <h3 className="text-2xl font-display font-bold text-white mb-2">Bilgi Quiz</h3>
-                            <p className="text-zinc-400 text-sm">Bilgini test et, puanları topla ve liderliğe oyna.</p>
-                          </div>
-                        </div>
-                      </motion.div>
-
-                      <motion.div 
-                        whileHover={{ scale: 1.02 }}
-                        onClick={() => handleModeChange('DEBUGGER')}
-                        className="md:col-span-2 bento-item group cursor-pointer border-blue-500/20 bg-blue-500/5"
-                      >
-                        <div className="flex flex-col h-full justify-between gap-8">
-                          <div className="w-14 h-14 bg-blue-500 text-white rounded-2xl flex items-center justify-center shadow-lg shadow-blue-500/20">
-                            <Bug className="w-8 h-8" />
-                          </div>
-                          <div>
-                            <h3 className="text-2xl font-display font-bold text-white mb-2">Kod Debugger</h3>
-                            <p className="text-zinc-400 text-sm">Hatalı kodlarını yapıştır, saniyeler içinde çözümünü bulalım.</p>
-                          </div>
-                        </div>
-                      </motion.div>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="space-y-12">
-                    {showDailyTip && (
-                      <motion.div 
-                        initial={{ opacity: 0, y: -20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        className="glass-card rounded-[2rem] p-8 relative overflow-hidden group border-emerald-500/20"
-                      >
-                    <div className="absolute top-0 right-0 p-4">
-                      <button 
-                        onClick={() => setShowDailyTip(false)}
-                        className="p-2 hover:bg-white/5 rounded-xl text-zinc-600 hover:text-white transition-all"
-                      >
-                        <X className="w-4 h-4" />
-                      </button>
-                    </div>
-                    <div className="flex items-start gap-6">
-                      <div className="w-14 h-14 bg-emerald-500/10 rounded-2xl flex items-center justify-center shrink-0 shadow-inner">
-                        <Lightbulb className="text-emerald-400 w-7 h-7" />
-                      </div>
-                      <div className="space-y-2">
-                        <div className="flex items-center gap-2">
-                          <span className="text-[10px] font-black uppercase tracking-[0.2em] text-emerald-400">Günün İpucu</span>
-                          <span className="w-1 h-1 bg-zinc-700 rounded-full"></span>
-                          <span className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-500">Teknoloji Rehberi</span>
-                        </div>
-                        <p className="text-base text-zinc-300 leading-relaxed font-medium">
-                          {DAILY_TIPS[new Date().getDate() % DAILY_TIPS.length]}
-                        </p>
-                      </div>
-                    </div>
-                  </motion.div>
-                )}
-                
-                <AnimatePresence initial={false}>
-                {messages.map((msg, idx) => (
-                  <motion.div
-                    key={idx}
-                    initial={{ opacity: 0, y: 20, scale: 0.98 }}
-                    animate={{ opacity: 1, y: 0, scale: 1 }}
-                    className={cn(
-                      "flex w-full mb-8",
-                      msg.role === 'user' ? "justify-end" : "justify-start"
-                    )}
-                  >
-                    <div className={cn(
-                      "max-w-[90%] md:max-w-[85%] rounded-[2.5rem] p-6 md:p-10 shadow-2xl relative group transition-all duration-500",
-                      msg.role === 'user' 
-                        ? "bg-white text-black rounded-tr-none shadow-white/5" 
-                        : "glass-card rounded-tl-none border-white/5"
-                    )}>
-                      {msg.role === 'assistant' && (
-                        <div className="flex items-center gap-4 mb-6">
-                          <div className="w-10 h-10 bg-emerald-500 rounded-2xl flex items-center justify-center shadow-xl shadow-emerald-500/20">
-                            <Cpu className="w-5 h-5 text-white" />
-                          </div>
-                          <div>
-                            <span className="text-[10px] font-black uppercase tracking-[0.2em] text-emerald-400 block">DeneyapAI Mentor</span>
-                            <span className="text-[9px] text-zinc-500 font-bold uppercase tracking-widest">Sistem v5.0 • {new Date(msg.timestamp).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })}</span>
-                          </div>
-                        </div>
-                      )}
-
-                      {msg.role === 'user' && (
-                        <div className="flex items-center gap-3 mb-4 opacity-40">
-                          <User className="w-4 h-4" />
-                          <span className="text-[9px] font-black uppercase tracking-widest">Siz • {new Date(msg.timestamp).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })}</span>
-                        </div>
-                      )}
-                      
-                      {msg.role === 'assistant' && (
-                        <button 
-                          onClick={() => handleCopy(msg.content, idx)}
-                          className="absolute top-8 right-8 p-2.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-zinc-500 hover:text-white opacity-0 group-hover:opacity-100 transition-all duration-300"
-                        >
-                          {copiedIdx === idx ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
-                        </button>
-                      )}
-
-                      <div className={cn(
-                        "prose prose-invert max-w-none",
-                        msg.role === 'assistant' ? "markdown-body text-zinc-300" : "text-base md:text-lg font-bold leading-relaxed tracking-tight"
-                      )}>
-                        {msg.role === 'assistant' ? (
-                          msg.content.startsWith('data:image') ? (
-                            <div className="space-y-6">
-                              <div className="relative group/img overflow-hidden rounded-3xl border border-white/10 shadow-2xl">
-                                <img 
-                                  src={msg.content} 
-                                  alt="AI Generated" 
-                                  className="w-full h-auto transition-transform duration-700 group-hover/img:scale-105"
-                                  referrerPolicy="no-referrer"
-                                />
-                                <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover/img:opacity-100 transition-opacity duration-500 flex items-end p-6">
-                                  <button 
-                                    onClick={() => {
-                                      const link = document.createElement('a');
-                                      link.href = msg.content;
-                                      link.download = `deneyapai-${Date.now()}.png`;
-                                      link.click();
-                                    }}
-                                    className="px-6 py-2.5 bg-white text-black rounded-xl text-[10px] font-black uppercase tracking-widest shadow-xl hover:bg-zinc-200 transition-all"
-                                  >
-                                    Görseli İndir
-                                  </button>
-                                </div>
-                              </div>
-                              <div className="flex items-center gap-2 px-4 py-2 bg-purple-500/10 border border-purple-500/20 rounded-xl w-fit">
-                                <ImageIcon className="w-3 h-3 text-purple-400" />
-                                <p className="text-[10px] text-purple-400 font-black uppercase tracking-widest">AI Görsel Üretimi Tamamlandı</p>
-                              </div>
-                            </div>
-                          ) : (
-                            <Markdown>{msg.content}</Markdown>
-                          )
-                        ) : (
-                          <p className="whitespace-pre-wrap">{msg.content}</p>
-                        )}
-                      </div>
-                    </div>
-                  </motion.div>
-                ))}
-              </AnimatePresence>
-              {isLoading && (
-                <motion.div
-                  initial={{ opacity: 0, x: -10 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  className="flex justify-start"
-                >
-                  <div className="glass-card rounded-3xl rounded-tl-none p-5 flex items-center gap-4">
-                    <div className="flex gap-1.5">
-                      {[0, 1, 2].map((i) => (
-                        <motion.div
-                          key={i}
-                          animate={{ 
-                            scale: [1, 1.5, 1],
-                            opacity: [0.3, 1, 0.3]
-                          }}
-                          transition={{ 
-                            repeat: Infinity, 
-                            duration: 1, 
-                            delay: i * 0.2 
-                          }}
-                          className="w-2 h-2 bg-emerald-500 rounded-full"
-                        />
-                      ))}
-                    </div>
-                    <span className="text-[10px] text-zinc-400 font-black uppercase tracking-widest">Zeka İşleniyor...</span>
-                  </div>
-                </motion.div>
-              )}
-              <div ref={messagesEndRef} />
-            </div>
-          )) : activeTab === 'modes' ? (
-            mode === 'SUBSCRIPTION' ? (
-              <div className="text-center space-y-4">
-                <motion.div
-                  initial={{ opacity: 0, scale: 0.9 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-500 text-[10px] font-black uppercase tracking-widest"
-                >
-                  <Zap className="w-3 h-3" />
-                  Premium Deneyim
-                </motion.div>
-                <h2 className="text-4xl md:text-5xl font-display font-bold bg-gradient-to-r from-amber-400 to-orange-500 bg-clip-text text-transparent">Üyelik Planları</h2>
-                <p className="text-zinc-400 max-w-2xl mx-auto text-sm md:text-base">Sana en uygun planı seç, teknolojide öne geç! Tüm ödemeler Shopier güvencesiyle yapılır ve lisans kodunuz anında e-postanıza iletilir.</p>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                {/* Free Plan */}
-                <div className="glass p-8 rounded-[2.5rem] border border-white/5 flex flex-col relative overflow-hidden group">
-                  <div className="mb-8">
-                    <h3 className="text-xl font-bold mb-2">Ücretsiz</h3>
-                    <div className="text-3xl font-bold text-white mb-1">0 TL</div>
-                    <p className="text-zinc-500 text-xs">Temel kullanım için ideal.</p>
-                  </div>
-                  <ul className="space-y-4 mb-8 flex-1">
-                    {[
-                      { text: 'Günlük 5 Mesaj', active: true },
-                      { text: 'Proje Üretici', active: true },
-                      { text: 'Kod Hata Ayıklama', active: true },
-                      { text: 'AI Görsel Üretici (2 Adet)', active: true },
-                      { text: 'AI Optimizasyon', active: false },
-                      { text: 'Canlı Sesli Sohbet', active: false },
-                    ].map((item, i) => (
-                      <li key={i} className={cn("flex items-center gap-3 text-sm", item.active ? "text-zinc-300" : "text-zinc-600")}>
-                        {item.active ? <Check className="w-4 h-4 text-emerald-500" /> : <X className="w-4 h-4" />}
-                        {item.text}
-                      </li>
-                    ))}
-                  </ul>
-                  <button disabled className="w-full py-4 rounded-2xl bg-zinc-800 text-zinc-500 font-bold text-sm cursor-not-allowed">
-                    Şu Anki Planın
-                  </button>
-                </div>
-
-                {/* Basic Plan */}
-                <div className="glass p-8 rounded-[2.5rem] border border-blue-500/20 flex flex-col relative overflow-hidden group">
-                  <div className="absolute top-0 right-0 bg-blue-500 text-white text-[10px] font-black px-4 py-1 rounded-bl-2xl uppercase tracking-widest">Popüler</div>
-                  <div className="mb-8">
-                    <h3 className="text-xl font-bold mb-2 text-blue-400">Basit</h3>
-                    <div className="text-3xl font-bold text-white mb-1">54,99 TL</div>
-                    <p className="text-zinc-500 text-xs">Daha fazla soru sormak isteyenler için.</p>
-                  </div>
-                  <ul className="space-y-4 mb-8 flex-1">
-                    {[
-                      { text: 'Günlük 90 Mesaj', active: true },
-                      { text: 'Tüm Temel Modlar', active: true },
-                      { text: 'AI Görsel Üretici (20 Adet)', active: true },
-                      { text: 'Reklamsız Deneyim', active: true },
-                      { text: 'AI Optimizasyon', active: false },
-                      { text: 'Canlı Sesli Sohbet', active: false },
-                    ].map((item, i) => (
-                      <li key={i} className={cn("flex items-center gap-3 text-sm", item.active ? "text-zinc-300" : "text-zinc-600")}>
-                        {item.active ? <Check className="w-4 h-4 text-blue-500" /> : <X className="w-4 h-4" />}
-                        {item.text}
-                      </li>
-                    ))}
-                  </ul>
-                  <button 
-                    onClick={() => window.open('https://www.shopier.com/bitlisstudyo/44761101', '_blank')}
-                    className="w-full py-4 rounded-2xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-sm transition-all shadow-lg shadow-blue-500/20"
-                  >
-                    Hemen Satın Al
-                  </button>
-                </div>
-
-                {/* Pro Plan */}
-                <div className="bg-gradient-to-br from-amber-500/10 to-orange-600/10 p-8 rounded-[2.5rem] border border-amber-500/30 flex flex-col relative overflow-hidden group">
-                  <div className="absolute top-0 right-0 bg-amber-500 text-black text-[10px] font-black px-4 py-1 rounded-bl-2xl uppercase tracking-widest">En Güçlü</div>
-                  <div className="mb-8">
-                    <h3 className="text-xl font-bold mb-2 text-amber-400">Pro</h3>
-                    <div className="text-3xl font-bold text-white mb-1">169,99 TL</div>
-                    <p className="text-zinc-500 text-xs text-amber-500/60">Sınırları zorlayan teknoloji fatihleri için.</p>
-                  </div>
-                  <ul className="space-y-4 mb-8 flex-1">
-                    {[
-                      { text: 'Sınırsız Mesaj', active: true },
-                      { text: 'Sınırsız AI Görsel Üretici', active: true },
-                      { text: 'Gelişmiş AI Modelleri (3.1 Pro)', active: true },
-                      { text: 'Proje Yol Haritası & Mentorluk', active: true },
-                      { text: 'Canlı Sesli Sohbet', active: true },
-                      { text: 'Öncelikli Destek & Danışmanlık', active: true },
-                    ].map((item, i) => (
-                      <li key={i} className={cn("flex items-center gap-3 text-sm", item.active ? "text-zinc-300" : "text-zinc-600")}>
-                        {item.active ? <Check className="w-4 h-4 text-amber-500" /> : <X className="w-4 h-4" />}
-                        {item.text}
-                      </li>
-                    ))}
-                  </ul>
-                  <button 
-                    onClick={() => window.open('https://www.shopier.com/bitlisstudyo/44761166', '_blank')}
-                    className="w-full py-4 rounded-2xl bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-400 hover:to-orange-500 text-white font-bold text-sm transition-all shadow-lg shadow-amber-500/20"
-                  >
-                    Pro'ya Geç
-                  </button>
-                </div>
-              </div>
-
-              {/* License Activation Section */}
-              <div className="max-w-2xl mx-auto glass p-8 rounded-[2.5rem] border border-white/5 space-y-6">
-                <div className="text-center">
-                  <h3 className="text-xl font-bold mb-2">Lisans Aktivasyonu</h3>
-                  <p className="text-zinc-500 text-sm">Satın aldığın lisans kodunu aşağıya girerek üyeliğini anında başlatabilirsin.</p>
-                </div>
-                <div className="flex flex-col sm:flex-row gap-3">
-                  <input 
-                    type="text" 
-                    value={licenseInput}
-                    onChange={(e) => setLicenseInput(e.target.value)}
-                    placeholder="TNP-XXXX-XXXX"
-                    className="flex-1 bg-zinc-800 border border-white/10 rounded-2xl px-6 py-4 text-white focus:outline-none focus:ring-2 focus:ring-amber-500/50 transition-all uppercase font-mono"
-                  />
-                  <button 
-                    onClick={handleLicenseActivation}
-                    className="bg-white text-black font-bold px-8 py-4 rounded-2xl hover:bg-zinc-200 transition-all"
-                  >
-                    Aktif Et
-                  </button>
-                </div>
-                {licenseError && <p className="text-red-400 text-xs text-center font-bold">{licenseError}</p>}
-                <div className="pt-4 border-t border-white/5 text-center">
-                  <button onClick={handleRequestLicense} className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors flex items-center gap-2 mx-auto">
-                    <Mail className="w-3 h-3" />
-                    Lisans Talebi İçin E-posta Gönder
-                  </button>
-                </div>
-              </div>
-
-              {/* FAQ Preview */}
-              <div className="text-center">
-                <button 
-                  onClick={() => handleModeChange('FAQ')}
-                  className="text-zinc-500 hover:text-zinc-300 text-sm font-bold flex items-center gap-2 mx-auto transition-all"
-                >
-                  Daha fazla bilgi mi lazım? SSS sayfasını ziyaret et
-                  <ChevronRight className="w-4 h-4" />
-                </button>
-              </div>
-            </div>
-          ) : mode === 'FAQ' ? (
-            <div className="p-4 md:p-8 max-w-4xl mx-auto space-y-12 pb-24 lg:pb-8">
-              <div className="flex items-center gap-4 mb-8">
-                <button onClick={() => handleModeChange('PROJECT_GEN')} className="p-2 hover:bg-zinc-800 rounded-xl text-zinc-500 transition-all">
-                  <ArrowLeft className="w-6 h-6" />
-                </button>
-                <h2 className="text-3xl font-display font-bold">Sıkça Sorulan Sorular</h2>
-              </div>
-
-              <div className="space-y-4">
-                {[
-                  { q: "DeneyapAI nedir?", a: "DeneyapAI, Bitlis Deneyap Atölyeleri öğrencileri ve teknoloji meraklıları için geliştirilmiş, Deneyap Kart ve setleri konusunda uzmanlaşmış bir yapay zeka mentordur. Proje fikirleri üretir, kod hatalarını ayıklar ve teknik rehberlik sunar." },
-                  { q: "Uygulama ücretli mi?", a: "Uygulamanın temel özellikleri tamamen ücretsizdir. Ancak API maliyetlerini karşılamak ve sistemi sürdürülebilir kılmak için günlük mesaj limitleri bulunmaktadır. Pro ve Basit üyelikler ile bu limitleri artırabilirsiniz." },
-                  { q: "Lisans kodumu nasıl alırım?", a: "Lisans kodlarını Shopier mağazamızdan satın alabilirsiniz. Satın alım sonrası kodunuz otomatik olarak e-posta adresinize gönderilir. Ayrıca Bitlis Stüdyo ekibiyle doğrudan iletişime geçerek de talep edebilirsiniz." },
-                  { q: "Verilerim güvende mi?", a: "Evet, gizliliğiniz bizim için önceliklidir. Profil bilgileriniz ve geçmişiniz tamamen tarayıcınızın yerel depolamasında (LocalStorage) saklanır. Yapay zeka ile paylaşılan veriler sadece yanıt üretmek için kullanılır ve reklam amaçlı paylaşılmaz." },
-                  { q: "Hangi dilleri destekliyor?", a: "DeneyapAI Türkçe dilinde optimize edilmiştir. Kodlama tarafında ise C++, Python, Arduino ve Blok tabanlı kodlama dillerinde uzman desteği sunar." },
-                  { q: "Bitlis Stüdyo nedir?", a: "Bitlis Stüdyo, Bitlis'te teknoloji ve yazılım alanında projeler geliştiren, gençlerin teknolojiye erişimini kolaylaştırmayı amaçlayan bir inovasyon ekibidir." }
-                ].map((item, i) => (
-                  <div key={i} className="glass p-6 rounded-3xl border border-white/5 space-y-3">
-                    <h4 className="text-lg font-bold text-white flex items-center gap-3">
-                      <div className="w-8 h-8 bg-blue-500/10 rounded-lg flex items-center justify-center shrink-0">
-                        <HelpCircle className="w-4 h-4 text-blue-400" />
-                      </div>
-                      {item.q}
-                    </h4>
-                    <p className="text-zinc-400 text-sm leading-relaxed pl-11">{item.a}</p>
-                  </div>
-                ))}
-              </div>
-
-              <div className="bg-zinc-900/50 p-8 rounded-[2.5rem] border border-dashed border-white/10 text-center space-y-4">
-                <h4 className="font-bold">Başka bir sorun mu var?</h4>
-                <p className="text-zinc-500 text-sm">Bize her zaman ulaşabilirsin. Ekibimiz sana yardımcı olmaktan mutluluk duyacaktır.</p>
-                <button 
-                  onClick={() => window.location.href = 'mailto:imranyesildag123@gmail.com'}
-                  className="px-8 py-3 bg-zinc-800 hover:bg-zinc-700 text-white rounded-2xl font-bold transition-all"
-                >
-                  Destek Ekibine Yaz
-                </button>
-              </div>
-            </div>
-          ) : mode === 'PRIVACY' ? (
-            <div className="p-4 md:p-8 max-w-4xl mx-auto space-y-12 pb-24 lg:pb-8">
-              <div className="flex items-center gap-4 mb-8">
-                <button onClick={() => handleModeChange('PROJECT_GEN')} className="p-2 hover:bg-zinc-800 rounded-xl text-zinc-500 transition-all">
-                  <ArrowLeft className="w-6 h-6" />
-                </button>
-                <h2 className="text-3xl font-display font-bold">Gizlilik Politikası</h2>
-              </div>
-
-              <div className="prose prose-invert max-w-none space-y-8 text-zinc-400">
-                <section className="space-y-4">
-                  <h3 className="text-white font-bold text-xl flex items-center gap-3">
-                    <div className="w-10 h-10 bg-emerald-500/10 rounded-xl flex items-center justify-center shrink-0">
-                      <ShieldCheck className="text-emerald-400 w-6 h-6" />
-                    </div>
-                    1. Veri Toplama
-                  </h3>
-                  <p>DeneyapAI, kullanıcı deneyimini iyileştirmek ve kişiselleştirilmiş mentorluk sunmak amacıyla adınız, teknoloji seviyeniz ve uygulama içi geçmişinizi toplar. Bu veriler tamamen yerel olarak (LocalStorage) cihazınızda saklanır.</p>
-                </section>
-
-                <section className="space-y-4">
-                  <h3 className="text-white font-bold text-xl flex items-center gap-3">
-                    <div className="w-10 h-10 bg-blue-500/10 rounded-xl flex items-center justify-center shrink-0">
-                      <Cpu className="text-blue-400 w-6 h-6" />
-                    </div>
-                    2. AI ve Üçüncü Taraflar
-                  </h3>
-                  <p>Sorularınız, yanıt üretilmesi amacıyla Google Gemini API'sine gönderilir. Bu süreçte kişisel verileriniz (adınız vb.) anonimleştirilerek veya sadece bağlam sağlamak amacıyla kullanılır. Verileriniz reklam amaçlı üçüncü taraflarla paylaşılmaz.</p>
-                </section>
-
-                <section className="space-y-4">
-                  <h3 className="text-white font-bold text-xl flex items-center gap-3">
-                    <div className="w-10 h-10 bg-amber-500/10 rounded-xl flex items-center justify-center shrink-0">
-                      <CreditCard className="text-amber-400 w-6 h-6" />
-                    </div>
-                    3. Premium ve Ödemeler
-                  </h3>
-                  <p>Premium üyelik için kullanılan lisans kodları ve aktivasyon bilgileri, sistem güvenliği ve hak sahipliği doğrulaması için Bitlis Stüdyo sunucularında (varsa) veya yerel olarak doğrulanır. Ödeme bilgileri doğrudan Bitlis Stüdyo ile iletişime geçilerek manuel olarak yönetilir.</p>
-                </section>
-
-                <section className="space-y-4">
-                  <h3 className="text-white font-bold text-xl flex items-center gap-3">
-                    <div className="w-10 h-10 bg-red-500/10 rounded-xl flex items-center justify-center shrink-0">
-                      <Trash2 className="text-red-400 w-6 h-6" />
-                    </div>
-                    4. Kullanıcı Hakları
-                  </h3>
-                  <p>Uygulama içindeki "Verileri Sıfırla" seçeneğini kullanarak cihazınızda saklanan tüm verileri dilediğiniz zaman silebilirsiniz. Bu işlem geri alınamaz.</p>
-                </section>
-
-                <section className="space-y-4">
-                  <h3 className="text-white font-bold text-xl flex items-center gap-3">
-                    <div className="w-10 h-10 bg-zinc-500/10 rounded-xl flex items-center justify-center shrink-0">
-                      <Mail className="text-zinc-400 w-6 h-6" />
-                    </div>
-                    5. İletişim
-                  </h3>
-                  <p>Gizlilik politikamız hakkında sorularınız için imranyesildag123@gmail.com adresi üzerinden bizimle iletişime geçebilirsiniz.</p>
-                </section>
-
-                <div className="pt-8 border-t border-white/5 text-center text-xs text-zinc-500 italic">
-                  Son Güncelleme: 28 Şubat 2026 | Bitlis Stüdyo, Bitlis.
-                </div>
-              </div>
-            </div>
-          ) : (
-            <div className="p-4 md:p-8 max-w-4xl mx-auto space-y-12 pb-24 lg:pb-8">
-              <div className="flex items-center gap-4 mb-8">
-                <button onClick={() => handleModeChange('PROJECT_GEN')} className="p-2 hover:bg-zinc-800 rounded-xl text-zinc-500 transition-all">
-                  <ArrowLeft className="w-6 h-6" />
-                </button>
-                <h2 className="text-3xl font-display font-bold">Hizmet Şartları</h2>
-              </div>
-
-              <div className="prose prose-invert max-w-none space-y-8 text-zinc-400">
-                <section className="space-y-4">
-                  <h3 className="text-white font-bold text-xl flex items-center gap-3">
-                    <FileText className="w-5 h-5 text-emerald-400" />
-                    1. Genel Kullanım
-                  </h3>
-                  <p>DeneyapAI, eğitim ve teknoloji geliştirme amaçlı bir platformdur. Kullanıcılar, sistemi yasalara ve etik kurallara uygun şekilde kullanmayı taahhüt eder. Sistemin kötüye kullanılması durumunda Bitlis Stüdyo erişimi kısıtlama hakkını saklı tutar.</p>
-                </section>
-
-                <section className="space-y-4">
-                  <h3 className="text-white font-bold text-xl flex items-center gap-3">
-                    <Award className="w-5 h-5 text-amber-400" />
-                    2. Lisans ve Üyelik
-                  </h3>
-                  <p>Satın alınan lisans kodları kişiye özeldir ve devredilemez. Bir lisans kodu sadece bir hesap/cihaz aktivasyonu için geçerlidir. Lisans kodlarının izinsiz paylaşımı veya satışı üyeliğin iptaline neden olabilir.</p>
-                </section>
-
-                <section className="space-y-4">
-                  <h3 className="text-white font-bold text-xl flex items-center gap-3">
-                    <Shield className="w-5 h-5 text-blue-400" />
-                    3. Sorumluluk Reddi
-                  </h3>
-                  <p>DeneyapAI bir yapay zeka modelidir ve sağladığı yanıtlar her zaman %100 doğru olmayabilir. Özellikle donanım projelerinde (elektrik, devre vb.) yapay zekadan alınan bilgileri uygulamadan önce teknik dökümanlardan teyit etmeniz önerilir. Oluşabilecek donanım hasarlarından Bitlis Stüdyo sorumlu tutulamaz.</p>
-                </section>
-
-                <section className="space-y-4">
-                  <h3 className="text-white font-bold text-xl flex items-center gap-3">
-                    <Zap className="w-5 h-5 text-purple-400" />
-                    4. Fikri Mülkiyet
-                  </h3>
-                  <p>Uygulama arayüzü, logosu ve Bitlis Stüdyo tarafından geliştirilen özel algoritmalar Bitlis Stüdyo'nun fikri mülkiyetidir. İzinsiz kopyalanması veya ticari amaçla kullanılması yasaktır.</p>
-                </section>
-
-                <div className="pt-8 border-t border-white/5 text-center text-xs text-zinc-500 italic">
-                  Son Güncelleme: 4 Mart 2026 | Bitlis Stüdyo, Bitlis.
-                </div>
-              </div>
-            </div>
-          )) : activeTab === 'history' ? (
-            <div className="p-4 md:p-8 max-w-5xl mx-auto space-y-8 pb-24 lg:pb-8">
-              <div className="flex items-center justify-between mb-8">
-                <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 bg-amber-500/10 rounded-2xl flex items-center justify-center">
-                    <HistoryIcon className="text-amber-400 w-6 h-6" />
-                  </div>
-                  <div>
-                    <h2 className="text-3xl font-display font-bold">Geçmiş Kayıtlarım</h2>
-                    <p className="text-zinc-500 text-sm font-medium">Daha önce yaptığın tüm çalışmalar burada saklanır.</p>
-                  </div>
-                </div>
-                {history.length > 0 && (
-                  <button 
-                    onClick={clearHistory}
-                    className="flex items-center gap-2 px-4 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-400 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all"
-                  >
-                    <Trash2 className="w-3 h-3" />
-                    Tümünü Temizle
-                  </button>
-                )}
-              </div>
-              
-              {history.length === 0 ? (
-                <div className="text-center py-32 glass-card rounded-[2.5rem] border-dashed border-white/5">
-                  <div className="w-20 h-20 bg-zinc-900 rounded-full flex items-center justify-center mx-auto mb-6">
-                    <MessageSquare className="w-10 h-10 text-zinc-700" />
-                  </div>
-                  <h3 className="text-xl font-display font-bold text-zinc-400 mb-2">Henüz Kayıt Yok</h3>
-                  <p className="text-zinc-600 text-sm max-w-xs mx-auto">Henüz bir kayıt bulunmuyor. İlk sorunu sorarak teknoloji yolculuğuna başlayabilirsin!</p>
-                </div>
-              ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  {history.map((item) => (
-                    <motion.div 
-                      key={item.id}
-                      initial={{ opacity: 0, y: 20 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      className="glass-card rounded-[2rem] p-8 hover:border-emerald-500/30 transition-all group relative overflow-hidden"
-                    >
-                      <div className="absolute top-0 right-0 p-4">
-                        <button 
-                          onClick={() => deleteHistoryItem(item.id)}
-                          className="p-2 text-zinc-600 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-all"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
-
-                      <div className="flex items-center gap-4 mb-6">
-                        <div className={cn(
-                          "w-12 h-12 rounded-2xl flex items-center justify-center transition-transform group-hover:scale-110",
-                          item.mode === 'PROJECT_GEN' ? "bg-emerald-500/10 text-emerald-400" : 
-                          item.mode === 'LIVE_VOICE' ? "bg-red-500/10 text-red-400" :
-                          "bg-blue-500/10 text-blue-400"
-                        )}>
-                          {item.mode === 'PROJECT_GEN' ? <Lightbulb className="w-6 h-6" /> : 
-                           item.mode === 'LIVE_VOICE' ? <Radio className="w-6 h-6" /> :
-                           <Bug className="w-6 h-6" />}
-                        </div>
-                        <div>
-                          <div className="text-lg font-display font-bold text-white line-clamp-1">{item.title}</div>
-                          <div className="text-[10px] text-zinc-500 font-black uppercase tracking-widest">{new Date(item.timestamp).toLocaleString('tr-TR')}</div>
-                        </div>
-                      </div>
-
-                      <div className="markdown-body text-sm line-clamp-4 text-zinc-400 group-hover:text-zinc-300 transition-colors">
-                        <Markdown>{item.content}</Markdown>
-                      </div>
-
-                      <div className="mt-6 pt-6 border-t border-white/5 flex items-center justify-between">
-                        <span className="text-[9px] font-black uppercase tracking-widest text-zinc-600">
-                          Mod: {item.mode}
-                        </span>
-                        <button 
-                          onClick={() => {
-                            setMode(item.mode as AppMode);
-                            setActiveTab('chat');
-                            setMessages([{ role: 'user', content: item.title, timestamp: Date.now() }, { role: 'assistant', content: item.content, timestamp: Date.now() }]);
-                          }}
-                          className="text-[10px] font-black uppercase tracking-widest text-emerald-400 hover:text-emerald-300 transition-colors"
-                        >
-                          Tekrar Görüntüle →
-                        </button>
-                      </div>
-                    </motion.div>
-                  ))}
-                </div>
-              )}
-            </div>
-          :
-            <div className="p-4 md:p-8 max-w-6xl mx-auto space-y-12 pb-24 lg:pb-8">
-              <div className="flex items-center gap-4 mb-8">
-                <div className="w-12 h-12 bg-emerald-500/10 rounded-2xl flex items-center justify-center">
-                  <User className="text-emerald-400 w-6 h-6" />
-                </div>
-                <div>
-                  <h2 className="text-3xl font-display font-bold">Kullanıcı Paneli</h2>
-                  <p className="text-zinc-500 text-sm font-medium">Teknoloji yolculuğundaki ilerlemeni takip et.</p>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-                {/* Profile Card */}
-                <div className="lg:col-span-4 space-y-6">
-                  {profile?.subscriptionTier !== 'PRO' && (
-                    <motion.div 
-                      initial={{ opacity: 0, scale: 0.95 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      className="glass-card rounded-[2.5rem] p-8 bg-gradient-to-br from-amber-500/20 to-orange-600/20 border-amber-500/30 relative overflow-hidden"
-                    >
-                      <div className="absolute -top-10 -right-10 w-32 h-32 bg-amber-500/20 blur-3xl rounded-full" />
-                      <div className="relative z-10">
-                        <div className="flex items-center gap-3 mb-4">
-                          <div className="w-10 h-10 bg-amber-500 text-black rounded-xl flex items-center justify-center shadow-lg">
-                            <Zap className="w-6 h-6" />
-                          </div>
-                          <h4 className="text-lg font-display font-bold text-white">Pro'ya Yükselt</h4>
-                        </div>
-                        <p className="text-zinc-400 text-xs mb-6 leading-relaxed">
-                          Sınırsız mesaj, AI görsel üretimi ve uzman mentorluk için hemen Pro'ya geç!
-                        </p>
-                        <button 
-                          onClick={() => handleModeChange('SUBSCRIPTION')}
-                          className="w-full py-3 bg-white text-black font-black text-[10px] uppercase tracking-widest rounded-xl hover:bg-zinc-200 transition-all shadow-xl"
-                        >
-                          Planları Görüntüle
-                        </button>
-                      </div>
-                    </motion.div>
-                  )}
-                  <div className="glass-card rounded-[2.5rem] p-8 flex flex-col items-center text-center relative overflow-hidden group">
-                    <div className="absolute top-0 right-0 p-4">
-                      <button 
-                        onClick={handleLogout}
-                        className="p-2 text-zinc-600 hover:text-red-400 transition-colors"
-                      >
-                        <LogOut className="w-5 h-5" />
-                      </button>
-                    </div>
-                    
-                    <div className="w-28 h-28 bg-zinc-900 border-4 border-emerald-500/20 rounded-full flex items-center justify-center text-emerald-400 mb-6 shadow-2xl relative">
-                      <User className="w-14 h-14" />
-                      <div className="absolute -bottom-1 -right-1 bg-emerald-500 text-black p-2 rounded-full shadow-lg">
-                        <ShieldCheck className="w-4 h-4" />
-                      </div>
-                    </div>
-                    
-                    <h3 className="text-2xl font-display font-bold text-white mb-1">{profile?.name}</h3>
-                    <p className="text-zinc-500 text-xs font-black uppercase tracking-widest mb-4">{profile?.email}</p>
-                    
-                    <div className={cn("px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest border", badge?.color)}>
-                      {badge?.name}
-                    </div>
-
-                    <div className="mt-8 w-full space-y-4">
-                      <div className="flex items-center justify-between text-xs font-bold uppercase tracking-widest text-zinc-500">
-                        <span>Seviye İlerlemesi</span>
-                        <span className="text-emerald-400">{profile?.level}</span>
-                      </div>
-                      <div className="h-2 w-full bg-zinc-800 rounded-full overflow-hidden">
-                        <motion.div 
-                          initial={{ width: 0 }}
-                          animate={{ width: `${(profile?.totalQuestions || 0) % 10 * 10}%` }}
-                          className="h-full bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.5)]"
-                        />
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="glass-card rounded-[2.5rem] p-8 space-y-6">
-                    <h4 className="text-xs font-black uppercase tracking-widest text-zinc-500">Hesap Güvenliği</h4>
-                    <div className="space-y-4">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 bg-blue-500/10 rounded-xl flex items-center justify-center">
-                            <Shield className="w-5 h-5 text-blue-400" />
-                          </div>
-                          <div>
-                            <div className="text-sm font-bold">2FA Koruması</div>
-                            <div className="text-[10px] text-zinc-500 uppercase font-black tracking-tighter">
-                              {profile?.twoFAEnabled ? 'Aktif' : 'Devre Dışı'}
-                            </div>
-                          </div>
-                        </div>
-                        {!profile?.twoFAEnabled && (
-                          <button 
-                            onClick={handleEnable2FA}
-                            className="text-[10px] font-black uppercase tracking-widest text-emerald-400 hover:text-emerald-300 transition-colors"
-                          >
-                            Aktif Et
-                          </button>
-                        )}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Stats Grid */}
-                <div className="lg:col-span-8 space-y-6">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div className="glass-card rounded-[2.5rem] p-8 flex flex-col justify-between group">
-                      <div className="w-12 h-12 bg-emerald-500/10 rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
-                        <MessageSquare className="w-6 h-6 text-emerald-400" />
-                      </div>
-                      <div>
-                        <div className="text-4xl font-display font-bold text-white mb-1">{profile?.totalQuestions}</div>
-                        <div className="text-xs font-black uppercase tracking-widest text-zinc-500">Toplam Soru</div>
-                      </div>
-                    </div>
-
-                    <div className="glass-card rounded-[2.5rem] p-8 flex flex-col justify-between group">
-                      <div className="w-12 h-12 bg-amber-500/10 rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
-                        <Zap className="w-6 h-6 text-amber-400" />
-                      </div>
-                      <div>
-                        <div className="text-4xl font-display font-bold text-white mb-1">{profile?.stats?.quizScore || 0}</div>
-                        <div className="text-xs font-black uppercase tracking-widest text-zinc-500">Quiz Puanı ({profile?.stats?.quizCount || 0} Quiz)</div>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Progress Chart */}
-                  <div className="glass-card rounded-[2.5rem] p-8 md:p-12 space-y-8">
-                    <div className="flex items-center justify-between">
-                      <h3 className="text-2xl font-display font-bold">İlerleme Analizi</h3>
-                      <div className="flex items-center gap-4">
-                        <div className="flex items-center gap-2">
-                          <div className="w-3 h-3 bg-emerald-500 rounded-full" />
-                          <span className="text-[10px] font-black uppercase tracking-widest text-zinc-500">Aktivite</span>
-                        </div>
-                      </div>
-                    </div>
-                    
-                    <div className="h-[300px] w-full">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <AreaChart
-                          data={[
-                            { name: 'Pzt', value: 4 },
-                            { name: 'Sal', value: 7 },
-                            { name: 'Çar', value: 5 },
-                            { name: 'Per', value: 9 },
-                            { name: 'Cum', value: 12 },
-                            { name: 'Cmt', value: 8 },
-                            { name: 'Paz', value: 15 },
-                          ]}
-                          margin={{ top: 10, right: 10, left: -20, bottom: 0 }}
-                        >
-                          <defs>
-                            <linearGradient id="colorValue" x1="0" y1="0" x2="0" y2="1">
-                              <stop offset="5%" stopColor="#10b981" stopOpacity={0.3}/>
-                              <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
-                            </linearGradient>
-                          </defs>
-                          <CartesianGrid strokeDasharray="3 3" stroke="#ffffff05" vertical={false} />
-                          <XAxis 
-                            dataKey="name" 
-                            stroke="#ffffff20" 
-                            fontSize={10} 
-                            tickLine={false}
-                            axisLine={false}
-                          />
-                          <YAxis 
-                            stroke="#ffffff20" 
-                            fontSize={10} 
-                            tickLine={false}
-                            axisLine={false}
-                          />
-                          <Tooltip 
-                            contentStyle={{ 
-                              backgroundColor: '#09090b', 
-                              border: '1px solid #ffffff10',
-                              borderRadius: '12px',
-                              fontSize: '12px',
-                              color: '#fff'
-                            }}
-                            itemStyle={{ color: '#10b981' }}
-                          />
-                          <Area 
-                            type="monotone" 
-                            dataKey="value" 
-                            stroke="#10b981" 
-                            strokeWidth={3}
-                            fillOpacity={1} 
-                            fill="url(#colorValue)" 
-                          />
-                        </AreaChart>
-                      </ResponsiveContainer>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    <div className="glass-card rounded-[2.5rem] p-8 flex flex-col justify-between group">
-                      <div className="w-12 h-12 bg-purple-500/10 rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
-                        <ImageIcon className="w-6 h-6 text-purple-400" />
-                      </div>
-                      <div>
-                        <div className="text-4xl font-display font-bold text-white mb-1">{profile?.stats?.imagesGenerated || 0}</div>
-                        <div className="text-xs font-black uppercase tracking-widest text-zinc-500">Görsel</div>
-                      </div>
-                    </div>
-
-                    <div className="glass-card rounded-[2.5rem] p-8 flex flex-col justify-between group">
-                      <div className="w-12 h-12 bg-blue-500/10 rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
-                        <Bug className="w-6 h-6 text-blue-400" />
-                      </div>
-                      <div>
-                        <div className="text-4xl font-display font-bold text-white mb-1">{profile?.stats?.bugsFixed || 0}</div>
-                        <div className="text-xs font-black uppercase tracking-widest text-zinc-500">Hata</div>
-                      </div>
-                    </div>
-
-                    <div className="glass-card rounded-[2.5rem] p-8 flex flex-col justify-between group">
-                      <div className="w-12 h-12 bg-indigo-500/10 rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
-                        <Github className="w-6 h-6 text-indigo-400" />
-                      </div>
-                      <div>
-                        <div className="text-4xl font-display font-bold text-white mb-1">{profile?.stats?.projectsShared || 0}</div>
-                        <div className="text-xs font-black uppercase tracking-widest text-zinc-500">Vitrinde</div>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Achievements Section */}
-                  <div className="md:col-span-2 glass-card rounded-[2.5rem] p-8">
-                    <h4 className="text-xs font-black uppercase tracking-widest text-zinc-500 mb-8">Başarımlar</h4>
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                      {[
-                        { icon: Star, label: 'Yeni Fatih', active: true },
-                        { icon: Zap, label: 'Hızlı Kodcu', active: (profile?.totalQuestions || 0) > 10 },
-                        { icon: Award, label: 'Hata Avcısı', active: (profile?.stats?.bugsFixed || 0) > 5 },
-                        { icon: ShieldCheck, label: 'Güvenli Liman', active: profile?.twoFAEnabled }
-                      ].map((ach, i) => (
-                        <div key={i} className={cn(
-                          "flex flex-col items-center gap-3 p-4 rounded-3xl border transition-all",
-                          ach.active ? "bg-emerald-500/5 border-emerald-500/20 text-emerald-400" : "bg-zinc-900/50 border-white/5 text-zinc-600 grayscale"
-                        )}>
-                          <ach.icon className="w-6 h-6" />
-                          <span className="text-[9px] font-black uppercase tracking-widest text-center">{ach.label}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        ))}
-      </div>
 
         {/* Input Area (Only in Chat Tab) */}
         {activeTab === 'chat' && !['LIVE_VOICE', 'SUBSCRIPTION', 'FAQ', 'TERMS'].includes(mode) && (

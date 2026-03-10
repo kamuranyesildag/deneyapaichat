@@ -95,6 +95,7 @@ export async function generateResponse(prompt: string, mode: AppMode, profile: U
     'TECH_NEWS': 'TEKNOLOJİ HABERLERİ (Güncel teknoloji ve bilim dünyasından haberler)',
     'QUIZ': 'TEKNOLOJİ QUİZ (Kullanıcıya teknoloji ve kodlama soruları sor)',
     'SHOWCASE': 'TOPLULUK VİTRİNİ (Kullanıcıların paylaştığı projeleri sergile)',
+    'LEADERBOARD': 'LİDERLİK TABLOSU (En başarılı kullanıcıları göster)',
     'SUBSCRIPTION': 'ABONELİK VE PLANLAR (Bilgi sayfası)',
     'FAQ': 'SIKÇA SORULAN SORULAR (Bilgi sayfası)',
     'TERMS': 'HİZMET ŞARTLARI (Bilgi sayfası)',
