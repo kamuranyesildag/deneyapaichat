@@ -791,6 +791,12 @@ export default function App() {
       };
       setProfile(newProfile);
       localStorage.setItem('tekno_nova_profile', JSON.stringify(newProfile));
+      
+      if (firebaseUser && db) {
+        setDoc(doc(db, 'users', firebaseUser.uid), newProfile, { merge: true })
+          .catch(e => console.error("Error syncing subscription to Firestore:", e));
+      }
+      
       setShowPremiumModal(false);
       setLicenseInput('');
       setLicenseError('');
@@ -1024,6 +1030,11 @@ export default function App() {
         };
         setProfile(updatedProfile);
         localStorage.setItem('tekno_nova_profile', JSON.stringify(updatedProfile));
+        
+        if (firebaseUser && db) {
+          setDoc(doc(db, 'users', firebaseUser.uid), updatedProfile, { merge: true })
+            .catch(e => console.error("Error syncing quiz score to Firestore:", e));
+        }
       }
     }
   };

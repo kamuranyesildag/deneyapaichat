@@ -1,7 +1,9 @@
-import React from 'react';
-import { Trophy, Crown, Medal, Lock, Zap, ArrowRight } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { Trophy, Crown, Medal, Lock, Zap, ArrowRight, Loader2 } from 'lucide-react';
 import { motion } from 'motion/react';
 import { UserProfile } from '../types';
+import { db } from '../services/firebase';
+import { collection, query, orderBy, limit, onSnapshot } from 'firebase/firestore';
 
 interface LeaderboardUser {
   id: string;
@@ -11,24 +13,56 @@ interface LeaderboardUser {
   avatar?: string;
 }
 
-const MOCK_LEADERBOARD: LeaderboardUser[] = [
-  { id: '1', name: 'Ahmet Yılmaz', score: 12500, level: 'İleri' },
-  { id: '2', name: 'Ayşe Demir', score: 11200, level: 'İleri' },
-  { id: '3', name: 'Mehmet Can', score: 9800, level: 'Orta' },
-  { id: '4', name: 'Fatma Kaya', score: 8500, level: 'Orta' },
-  { id: '5', name: 'Caner Öz', score: 7200, level: 'Başlangıç' },
-  { id: '6', name: 'Selin Ak', score: 6500, level: 'Başlangıç' },
-  { id: '7', name: 'Burak Yılmaz', score: 5800, level: 'Başlangıç' },
-  { id: '8', name: 'Ece Aydın', score: 4900, level: 'Başlangıç' },
-];
-
 interface LeaderboardProps {
   profile: UserProfile | null;
   onUpgrade: () => void;
 }
 
 const Leaderboard: React.FC<LeaderboardProps> = ({ profile, onUpgrade }) => {
+  const [users, setUsers] = useState<LeaderboardUser[]>([]);
+  const [loading, setLoading] = useState(true);
   const isPro = profile?.subscriptionTier === 'PRO';
+
+  useEffect(() => {
+    if (!db) {
+      setLoading(false);
+      return;
+    }
+
+    const q = query(
+      collection(db, 'users'),
+      orderBy('stats.quizScore', 'desc'),
+      limit(20)
+    );
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const leaderboardData: LeaderboardUser[] = snapshot.docs.map(doc => {
+        const data = doc.data() as UserProfile;
+        return {
+          id: doc.id,
+          name: data.name || 'Gizli Kullanıcı',
+          score: data.stats?.quizScore || 0,
+          level: data.level || 'Başlangıç',
+        };
+      });
+      setUsers(leaderboardData);
+      setLoading(false);
+    }, (error) => {
+      console.error("Leaderboard error:", error);
+      setLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20 space-y-4">
+        <Loader2 className="w-10 h-10 text-emerald-500 animate-spin" />
+        <p className="text-zinc-500 font-black uppercase tracking-widest text-xs">Şampiyonlar Yükleniyor...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-8 max-w-4xl mx-auto">
@@ -61,7 +95,7 @@ const Leaderboard: React.FC<LeaderboardProps> = ({ profile, onUpgrade }) => {
               </tr>
             </thead>
             <tbody className="divide-y divide-white/5">
-              {MOCK_LEADERBOARD.map((user, index) => {
+              {users.map((user, index) => {
                 const isBlurred = !isPro && index >= 2;
                 
                 return (
@@ -89,7 +123,7 @@ const Leaderboard: React.FC<LeaderboardProps> = ({ profile, onUpgrade }) => {
                         </div>
                         <div>
                           <p className="text-white font-medium">{user.name}</p>
-                          <p className="text-xs text-zinc-500">@{user.name.toLowerCase().replace(' ', '')}</p>
+                          <p className="text-xs text-zinc-500">@{user.name.toLowerCase().replace(/\s+/g, '')}</p>
                         </div>
                       </div>
                     </td>
@@ -110,6 +144,13 @@ const Leaderboard: React.FC<LeaderboardProps> = ({ profile, onUpgrade }) => {
                   </tr>
                 );
               })}
+              {users.length === 0 && !loading && (
+                <tr>
+                  <td colSpan={4} className="px-6 py-20 text-center text-zinc-500 font-bold uppercase tracking-widest text-xs">
+                    Henüz şampiyon yok. İlk sen ol!
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>
@@ -142,13 +183,21 @@ const Leaderboard: React.FC<LeaderboardProps> = ({ profile, onUpgrade }) => {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <div className="p-6 bg-zinc-900/50 border border-white/5 rounded-3xl space-y-2">
           <p className="text-[10px] font-black uppercase tracking-widest text-zinc-500">Senin Sıran</p>
-          <p className="text-3xl font-display font-bold text-white">#124</p>
-          <p className="text-xs text-zinc-400">En iyi %15 içindesin</p>
+          <p className="text-3xl font-display font-bold text-white">
+            {users.findIndex(u => u.id === profile?.email) !== -1 
+              ? `#${users.findIndex(u => u.id === profile?.email) + 1}` 
+              : '#---'}
+          </p>
+          <p className="text-xs text-zinc-400">
+            {users.findIndex(u => u.id === profile?.email) !== -1 
+              ? `En iyi %${Math.round(((users.findIndex(u => u.id === profile?.email) + 1) / users.length) * 100)} içindesin`
+              : 'Sıralamaya girmek için puan kazan!'}
+          </p>
         </div>
         <div className="p-6 bg-zinc-900/50 border border-white/5 rounded-3xl space-y-2">
           <p className="text-[10px] font-black uppercase tracking-widest text-zinc-500">Toplam Puan</p>
-          <p className="text-3xl font-display font-bold text-emerald-400">2,450</p>
-          <p className="text-xs text-zinc-400">Bu hafta +450 puan</p>
+          <p className="text-3xl font-display font-bold text-emerald-400">{(profile?.stats?.quizScore || 0).toLocaleString()}</p>
+          <p className="text-xs text-zinc-400">Quizlerden kazandığın puan</p>
         </div>
         <div className="p-6 bg-zinc-900/50 border border-white/5 rounded-3xl space-y-2">
           <p className="text-[10px] font-black uppercase tracking-widest text-zinc-500">Rozetler</p>
