@@ -625,7 +625,7 @@ export default function App() {
               }
             }
             
-            localStorage.setItem('tekno_nova_profile', JSON.stringify(finalProfile));
+            localStorage.setItem('deneyapai_profile', JSON.stringify(finalProfile));
             
             // Sync to Firestore if it's a new profile or updated
             if (db) {
@@ -642,7 +642,7 @@ export default function App() {
           setShow2FAVerify(false);
           
           // If no user and no local profile, show onboarding
-          const storedProfile = localStorage.getItem('tekno_nova_profile');
+          const storedProfile = localStorage.getItem('deneyapai_profile');
           if (!storedProfile) {
             setShowOnboarding(true);
           }
@@ -760,8 +760,8 @@ export default function App() {
       }
       // Just sign out of Firebase, but keep local profile if they want?
       // Actually, standard logout should clear the session.
-      localStorage.removeItem('tekno_nova_profile');
-      localStorage.removeItem('tekno_nova_history');
+      localStorage.removeItem('deneyapai_profile');
+      localStorage.removeItem('deneyapai_history');
       window.location.reload();
     } catch (error) {
       console.error("Logout Error:", error);
@@ -803,21 +803,21 @@ export default function App() {
     const today = new Date().toISOString().split('T')[0];
     
     // Usage
-    const storedUsage = localStorage.getItem('tekno_nova_usage');
+    const storedUsage = localStorage.getItem('deneyapai_usage');
     if (storedUsage) {
       const { date, count } = JSON.parse(storedUsage);
       if (date === today) {
         setUsageCount(count);
       } else {
-        localStorage.setItem('tekno_nova_usage', JSON.stringify({ date: today, count: 0 }));
+        localStorage.setItem('deneyapai_usage', JSON.stringify({ date: today, count: 0 }));
         setUsageCount(0);
       }
     } else {
-      localStorage.setItem('tekno_nova_usage', JSON.stringify({ date: today, count: 0 }));
+      localStorage.setItem('deneyapai_usage', JSON.stringify({ date: today, count: 0 }));
     }
 
     // Profile
-    const storedProfile = localStorage.getItem('tekno_nova_profile');
+    const storedProfile = localStorage.getItem('deneyapai_profile');
     if (storedProfile) {
       const parsedProfile: UserProfile = JSON.parse(storedProfile);
       // Security update: lastLogin and deviceId
@@ -831,7 +831,7 @@ export default function App() {
         achievements: parsedProfile.achievements || []
       };
       setProfile(updatedProfile);
-      localStorage.setItem('tekno_nova_profile', JSON.stringify(updatedProfile));
+      localStorage.setItem('deneyapai_profile', JSON.stringify(updatedProfile));
       
       if (!updatedProfile.kvkkAccepted) {
         setShowKvkkModal(true);
@@ -841,7 +841,7 @@ export default function App() {
     }
 
     // History
-    const storedHistory = localStorage.getItem('tekno_nova_history');
+    const storedHistory = localStorage.getItem('deneyapai_history');
     if (storedHistory) {
       setHistory(JSON.parse(storedHistory));
     }
@@ -886,7 +886,7 @@ export default function App() {
       securityVerified: true
     };
     setProfile(newProfile);
-    localStorage.setItem('tekno_nova_profile', JSON.stringify(newProfile));
+    localStorage.setItem('deneyapai_profile', JSON.stringify(newProfile));
     
     if (firebaseUser && db) {
       setDoc(doc(db, 'users', firebaseUser.uid), newProfile, { merge: true })
@@ -913,7 +913,7 @@ export default function App() {
         isPremium: newTier === 'PRO' 
       };
       setProfile(newProfile);
-      localStorage.setItem('tekno_nova_profile', JSON.stringify(newProfile));
+      localStorage.setItem('deneyapai_profile', JSON.stringify(newProfile));
       
       if (firebaseUser && db) {
         setDoc(doc(db, 'users', firebaseUser.uid), newProfile, { merge: true })
@@ -931,7 +931,7 @@ export default function App() {
 
   const handleRequestLicense = () => {
     const subject = encodeURIComponent('DeneyapAI Lisans Talebi');
-    const body = encodeURIComponent(`Merhaba Bitlis Stüdyo,\n\nDeneyapAI Premium için lisans kodu almak istiyorum. Ödeme ve IBAN bilgileri için geri dönüşünü bekliyorum.\n\nAdım: ${profile?.name}\nSeviyem: ${profile?.level}`);
+    const body = encodeURIComponent(`Merhaba DeneyapAI Ekibi,\n\nDeneyapAI Premium için lisans kodu almak istiyorum. Ödeme ve IBAN bilgileri için geri dönüşünü bekliyorum.\n\nAdım: ${profile?.name}\nSeviyem: ${profile?.level}`);
     window.location.href = `mailto:imranyesildag123@gmail.com?subject=${subject}&body=${body}`;
   };
 
@@ -939,7 +939,7 @@ export default function App() {
     if (profile) {
       const updatedProfile = { ...profile, kvkkAccepted: true };
       setProfile(updatedProfile);
-      localStorage.setItem('tekno_nova_profile', JSON.stringify(updatedProfile));
+      localStorage.setItem('deneyapai_profile', JSON.stringify(updatedProfile));
       setShowKvkkModal(false);
       addNotification('KVKK Aydınlatma Metni kabul edildi.', 'success');
     }
@@ -987,7 +987,7 @@ export default function App() {
     const today = new Date().toISOString().split('T')[0];
     const newUsageCount = usageCount + 1;
     setUsageCount(newUsageCount);
-    localStorage.setItem('tekno_nova_usage', JSON.stringify({ date: today, count: newUsageCount }));
+    localStorage.setItem('deneyapai_usage', JSON.stringify({ date: today, count: newUsageCount }));
 
     // Image generation limit check
     if (mode === 'IMAGE_GEN') {
@@ -1070,7 +1070,7 @@ export default function App() {
       };
       const updatedHistory = [newHistoryItem, ...history].slice(0, 20);
       setHistory(updatedHistory);
-      localStorage.setItem('tekno_nova_history', JSON.stringify(updatedHistory));
+      localStorage.setItem('deneyapai_history', JSON.stringify(updatedHistory));
       
       if (firebaseUser && db) {
         setDoc(doc(db, 'history', firebaseUser.uid), { items: updatedHistory })
@@ -2640,7 +2640,7 @@ export default function App() {
           />
         </motion.div>
         <h2 className="text-2xl font-display font-bold text-white mb-2">DeneyapAI</h2>
-        <p className="text-zinc-500 text-sm font-medium uppercase tracking-[0.3em]">Bitlis Stüdyo</p>
+        <p className="text-zinc-500 text-sm font-medium uppercase tracking-[0.3em]">DeneyapAI</p>
         <div className="mt-12 flex gap-1">
           {[0, 1, 2].map((i) => (
             <motion.div
@@ -3531,8 +3531,8 @@ export default function App() {
       <aside className="fixed left-6 top-6 bottom-6 w-20 lg:w-80 glass-dark rounded-[2.5rem] flex flex-col hidden md:flex z-50 transition-all duration-500 group/sidebar shadow-2xl">
         <div className="p-6 lg:p-8">
           <div className="flex items-center gap-4 group cursor-pointer" onClick={() => handleModeChange('PROJECT_GEN')}>
-            <div className="w-10 h-10 lg:w-14 lg:h-14 bg-gradient-to-br from-emerald-400 to-teal-600 rounded-[1.5rem] flex items-center justify-center shadow-2xl shadow-emerald-500/20 transition-all duration-700 group-hover:scale-110 group-hover:rotate-6 group-hover:shadow-emerald-500/40">
-              <Star className="text-white w-6 h-6 lg:w-8 lg:h-8" />
+            <div className="w-10 h-10 lg:w-14 lg:h-14 bg-white rounded-[1.5rem] flex items-center justify-center shadow-2xl shadow-emerald-500/20 transition-all duration-700 group-hover:scale-110 group-hover:rotate-6 group-hover:shadow-emerald-500/40 overflow-hidden">
+              <img src="https://r.resimlink.com/UsHJvfCn.png" alt="DeneyapAI Logo" className="w-full h-full object-cover" />
             </div>
             <div className="hidden lg:block opacity-0 group-hover/sidebar:opacity-100 transition-opacity duration-500">
               <h1 className="font-display font-bold text-2xl tracking-tight text-white leading-none mb-1">DeneyapAI</h1>
@@ -3623,7 +3623,7 @@ export default function App() {
                 <Info className="w-5 h-5 text-emerald-400" />
               </div>
               <div className="hidden lg:block">
-                <span className="text-[10px] font-black uppercase tracking-widest text-emerald-400 block">Bitlis Stüdyo</span>
+                <span className="text-[10px] font-black uppercase tracking-widest text-emerald-400 block">DeneyapAI</span>
                 <span className="text-[9px] text-zinc-600 font-bold">Geleceği İnşa Et</span>
               </div>
             </div>
@@ -3695,8 +3695,8 @@ export default function App() {
               <Menu className="w-6 h-6" />
             </button>
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-emerald-500 rounded-xl flex items-center justify-center shadow-lg shadow-emerald-500/20">
-                <Star className="text-white w-6 h-6" />
+              <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center shadow-lg shadow-emerald-500/20 overflow-hidden">
+                <img src="https://r.resimlink.com/UsHJvfCn.png" alt="DeneyapAI Logo" className="w-full h-full object-cover" />
               </div>
               <h1 className="font-display font-bold text-xl tracking-tight text-white">DeneyapAI</h1>
             </div>
@@ -3948,7 +3948,7 @@ export default function App() {
               <div className="flex items-center gap-3 opacity-30">
                 <div className="w-10 h-[1px] bg-zinc-700" />
                 <p className="text-[9px] text-zinc-600 uppercase tracking-[0.3em] font-black">
-                  DeneyapAI • Bitlis Stüdyo • v5.0
+                  DeneyapAI • v5.0
                 </p>
                 <div className="w-10 h-[1px] bg-zinc-700" />
               </div>
@@ -4185,7 +4185,7 @@ export default function App() {
 
                 <div className="max-h-[40vh] overflow-y-auto pr-4 custom-scrollbar space-y-4 text-zinc-400 text-sm leading-relaxed">
                   <p>Değerli Kullanıcımız,</p>
-                  <p>Bitlis Stüdyo olarak, 6698 sayılı Kişisel Verilerin Korunması Kanunu (“KVKK”) uyarınca, veri sorumlusu sıfatıyla, kişisel verilerinizin güvenliği hususuna azami hassasiyet göstermekteyiz.</p>
+                  <p>DeneyapAI olarak, 6698 sayılı Kişisel Verilerin Korunması Kanunu (“KVKK”) uyarınca, veri sorumlusu sıfatıyla, kişisel verilerinizin güvenliği hususuna azami hassasiyet göstermekteyiz.</p>
                   <p><strong>1. Veri İşleme Amacı:</strong> DeneyapAI uygulamasını kullanırken paylaştığınız veriler (ad, e-posta, kullanım istatistikleri), size daha iyi bir yapay zeka deneyimi sunmak, hesap güvenliğinizi sağlamak ve ilerlemenizi takip etmek amacıyla işlenmektedir.</p>
                   <p><strong>2. Veri Paylaşımı:</strong> Kişisel verileriniz, yasal yükümlülükler dışında üçüncü taraflarla paylaşılmamaktadır. Yapay zeka modelleriyle paylaşılan veriler anonimleştirilerek iletilmektedir.</p>
                   <p><strong>3. Haklarınız:</strong> KVKK’nın 11. maddesi uyarınca; verilerinizin işlenip işlenmediğini öğrenme, düzeltilmesini isteme ve silinmesini talep etme haklarına sahipsiniz.</p>
@@ -4281,7 +4281,7 @@ export default function App() {
                       }
                     } as UserProfile;
                     setProfile(updatedProfile);
-                    localStorage.setItem('tekno_nova_profile', JSON.stringify(updatedProfile));
+                    localStorage.setItem('deneyapai_profile', JSON.stringify(updatedProfile));
                     if (firebaseUser && db) {
                       const { doc, setDoc } = await import('firebase/firestore');
                       setDoc(doc(db, 'users', firebaseUser.uid), updatedProfile, { merge: true });

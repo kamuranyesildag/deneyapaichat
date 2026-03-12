@@ -1,8 +1,8 @@
 {
   "id": "/",
-  "name": "Tekno Nova: Deneyap Mentor",
-  "short_name": "Tekno Nova",
-  "description": "Bitlis'ten çıkan Deneyap ve TEKNOFEST asistanı. Projelerinizi geliştirin, kodlarınızı ayıklayın.",
+  "name": "DeneyapAI: Deneyap Mentor",
+  "short_name": "DeneyapAI",
+  "description": "Deneyap Atölyeleri ve TEKNOFEST takımları için akıllı proje üretici, kod hata ayıklayıcı ve mentor asistan.",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#09090b",
@@ -13,25 +13,25 @@
   "categories": ["education", "productivity", "developer tools"],
   "icons": [
     {
-      "src": "https://placehold.co/144x144/png",
+      "src": "https://r.resimlink.com/UsHJvfCn.png",
       "sizes": "144x144",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "https://placehold.co/192x192/png",
+      "src": "https://r.resimlink.com/UsHJvfCn.png",
       "sizes": "192x192",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "https://placehold.co/512x512/png",
+      "src": "https://r.resimlink.com/UsHJvfCn.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "https://placehold.co/512x512/png",
+      "src": "https://r.resimlink.com/UsHJvfCn.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "maskable"
@@ -39,18 +39,18 @@
   ],
   "screenshots": [
     {
-      "src": "https://placehold.co/1080x1920/1a1a1a/d4af37.png?text=BITLIS+STUDYO+NOVA",
+      "src": "https://r.resimlink.com/UsHJvfCn.png",
       "sizes": "1080x1920",
       "type": "image/png",
       "form_factor": "narrow",
-      "label": "Tekno Nova Ana Ekran"
+      "label": "DeneyapAI Ana Ekran"
     },
     {
-      "src": "https://placehold.co/1920x1080/1a1a1a/d4af37.png?text=BITLIS+STUDYO+NOVA",
+      "src": "https://r.resimlink.com/UsHJvfCn.png",
       "sizes": "1920x1080",
       "type": "image/png",
       "form_factor": "wide",
-      "label": "Tekno Nova Masaüstü Görünümü"
+      "label": "DeneyapAI Masaüstü Görünümü"
     }
   ]
 }
