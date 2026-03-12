@@ -19,6 +19,8 @@ export interface UserProfile {
   deviceId?: string;
   securityVerified?: boolean;
   email?: string;
+  city?: string;
+  institution?: string;
   twoFAEnabled?: boolean;
   twoFASecret?: string;
   kvkkAccepted?: boolean;

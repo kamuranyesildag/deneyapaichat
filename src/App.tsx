@@ -274,6 +274,15 @@ export default function App() {
   const [showcaseProjects, setShowcaseProjects] = useState<{id: string, title: string, author: string, description: string, likes: number, category: string, image?: string}[]>([]);
   const [licenseInput, setLicenseInput] = useState('');
   const [showInstructorModal, setShowInstructorModal] = useState(false);
+  const [showEditProfileModal, setShowEditProfileModal] = useState(false);
+  const [editName, setEditName] = useState('');
+  const [editCity, setEditCity] = useState('');
+  const [editInstitution, setEditInstitution] = useState('');
+  const [editLevel, setEditLevel] = useState<'Başlangıç' | 'Orta' | 'İleri'>('Başlangıç');
+  const [showNewFeaturesPopup, setShowNewFeaturesPopup] = useState(false);
+  const [showFeedbackModal, setShowFeedbackModal] = useState(false);
+  const [feedbackText, setFeedbackText] = useState('');
+  const [isSubmittingFeedback, setIsSubmittingFeedback] = useState(false);
 
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -286,6 +295,85 @@ export default function App() {
     setTimeout(() => {
       setNotifications(prev => prev.filter(n => n.id !== id));
     }, 5000);
+  };
+
+  useEffect(() => {
+    const lastSeenVersion = localStorage.getItem('deneyap_ai_last_seen_version');
+    const currentVersion = '2.5.0';
+    
+    if (lastSeenVersion !== currentVersion) {
+      const timer = setTimeout(() => {
+        setShowNewFeaturesPopup(true);
+      }, 1500);
+      return () => clearTimeout(timer);
+    }
+  }, []);
+
+  const closeNewFeaturesPopup = () => {
+    localStorage.setItem('deneyap_ai_last_seen_version', '2.5.0');
+    setShowNewFeaturesPopup(false);
+  };
+
+  const handleSendFeedback = async () => {
+    if (!feedbackText.trim() || !profile) return;
+    
+    setIsSubmittingFeedback(true);
+    try {
+      if (db) {
+        const { collection, addDoc, serverTimestamp } = await import('firebase/firestore');
+        
+        // Bu koleksiyon "Trigger Email" extension'ı ile bağlanabilir
+        await addDoc(collection(db, 'feedbacks'), {
+          to: ['imranyesildag123@gmail.com'],
+          message: {
+            subject: `DeneyapAI Geri Bildirim: ${profile.name}`,
+            text: feedbackText,
+            html: `
+              <h3>Yeni Geri Bildirim</h3>
+              <p><strong>Gönderen:</strong> ${profile.name} (${profile.email})</p>
+              <p><strong>Rol:</strong> ${profile.role || 'Öğrenci'}</p>
+              <p><strong>Şehir:</strong> ${profile.city || 'Belirtilmemiş'}</p>
+              <p><strong>Mesaj:</strong></p>
+              <p>${feedbackText.replace(/\n/g, '<br>')}</p>
+            `
+          },
+          userId: firebaseUser?.uid,
+          timestamp: serverTimestamp()
+        });
+        
+        addNotification("Geri bildiriminiz başarıyla iletildi! Teşekkürler. ❤️", "success");
+        setFeedbackText('');
+        setShowFeedbackModal(false);
+      }
+    } catch (error) {
+      console.error("Feedback error:", error);
+      addNotification("Geri bildirim gönderilirken bir hata oluştu.", "error");
+    } finally {
+      setIsSubmittingFeedback(false);
+    }
+  };
+
+  const handleUpdateProfile = async () => {
+    if (!profile) return;
+    
+    const updated: UserProfile = {
+      ...profile,
+      name: editName,
+      city: editCity,
+      institution: editInstitution,
+      level: editLevel
+    };
+    
+    setProfile(updated);
+    localStorage.setItem('tekno_nova_profile', JSON.stringify(updated));
+    
+    if (firebaseUser && db) {
+      const { doc, setDoc } = await import('firebase/firestore');
+      await setDoc(doc(db, 'users', firebaseUser.uid), updated, { merge: true });
+    }
+    
+    setShowEditProfileModal(false);
+    addNotification("Profil başarıyla güncellendi! ✨", "success");
   };
 
   const handleActivateLicense = async () => {
@@ -1339,7 +1427,22 @@ export default function App() {
                 </motion.div>
               )}
               <div className="glass-card rounded-[2.5rem] p-8 flex flex-col items-center text-center relative overflow-hidden group">
-                <div className="absolute top-0 right-0 p-4">
+                <div className="absolute top-0 right-0 p-4 flex gap-2">
+                  <button 
+                    onClick={() => {
+                      if (profile) {
+                        setEditName(profile.name);
+                        setEditCity(profile.city || '');
+                        setEditInstitution(profile.institution || '');
+                        setEditLevel(profile.level);
+                        setShowEditProfileModal(true);
+                      }
+                    }}
+                    className="p-2 text-zinc-600 hover:text-emerald-400 transition-colors"
+                    title="Profili Düzenle"
+                  >
+                    <Settings className="w-5 h-5" />
+                  </button>
                   <button 
                     onClick={handleLogout}
                     className="p-2 text-zinc-600 hover:text-red-400 transition-colors"
@@ -1429,6 +1532,22 @@ export default function App() {
                       </p>
                     </div>
                   )}
+                </div>
+              </div>
+
+              <div className="glass-card rounded-[2.5rem] p-8 space-y-6">
+                <h4 className="text-xs font-black uppercase tracking-widest text-zinc-500">Destek & Geri Bildirim</h4>
+                <div className="space-y-4">
+                  <button 
+                    onClick={() => setShowFeedbackModal(true)}
+                    className="w-full py-4 rounded-2xl bg-white/5 border border-white/10 text-white font-bold text-xs uppercase tracking-widest hover:bg-white/10 transition-all flex items-center justify-center gap-3 group"
+                  >
+                    <MessageSquare className="w-5 h-5 text-emerald-400 group-hover:scale-110 transition-transform" />
+                    Geri Bildirim Gönder
+                  </button>
+                  <p className="text-[10px] text-zinc-500 text-center leading-relaxed">
+                    Uygulamayı geliştirmemize yardımcı olun. Görüşleriniz bizim için çok değerli!
+                  </p>
                 </div>
               </div>
 
@@ -4343,6 +4462,253 @@ export default function App() {
                   </button>
                 </div>
               </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* New Features Popup */}
+      <AnimatePresence>
+        {showNewFeaturesPopup && (
+          <div className="fixed inset-0 z-[700] flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="absolute inset-0 bg-black/90 backdrop-blur-md"
+            />
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.8, y: 40 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.8, y: 40 }}
+              className="relative w-full max-w-lg glass-card rounded-[3rem] p-8 md:p-12 overflow-hidden"
+            >
+              {/* Decorative background elements */}
+              <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-emerald-500 via-purple-500 to-blue-500" />
+              <div className="absolute -top-24 -right-24 w-48 h-48 bg-emerald-500/10 rounded-full blur-3xl" />
+              <div className="absolute -bottom-24 -left-24 w-48 h-48 bg-purple-500/10 rounded-full blur-3xl" />
+
+              <div className="relative space-y-8">
+                <div className="text-center space-y-2">
+                  <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-[10px] font-black uppercase tracking-widest mb-2">
+                    <Sparkles className="w-3 h-3" />
+                    Yeni Güncelleme v2.5
+                  </div>
+                  <h2 className="text-4xl font-display font-bold text-white tracking-tight">Neler Yeni?</h2>
+                  <p className="text-zinc-500 text-sm">DeneyapAI deneyiminizi bir üst seviyeye taşıdık.</p>
+                </div>
+
+                <div className="grid grid-cols-1 gap-4">
+                  {[
+                    {
+                      icon: <User className="w-5 h-5 text-emerald-400" />,
+                      title: "Gelişmiş Profil Düzenleme",
+                      desc: "Artık adınızı, şehrinizi ve kurumunuzu güncelleyebilirsiniz."
+                    },
+                    {
+                      icon: <Sparkles className="w-5 h-5 text-purple-400" />,
+                      title: "Kişiselleştirilmiş AI Yanıtları",
+                      desc: "DeneyapAI artık rolünüze ve ilinize göre özel yanıtlar veriyor."
+                    },
+                    {
+                      icon: <GraduationCap className="w-5 h-5 text-blue-400" />,
+                      title: "Eğitmen Lisans Sistemi",
+                      desc: "Eğitmenler için yeni lisans aktivasyon ve doğrulama sistemi."
+                    },
+                    {
+                      icon: <ShieldCheck className="w-5 h-5 text-amber-400" />,
+                      title: "Akıllı Hata Yönetimi",
+                      desc: "API hataları için daha açıklayıcı ve yönlendirici mesajlar."
+                    }
+                  ].map((feature, i) => (
+                    <motion.div 
+                      key={i}
+                      initial={{ opacity: 0, x: -20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ delay: 0.3 + (i * 0.1) }}
+                      className="flex items-start gap-4 p-4 rounded-2xl bg-white/5 border border-white/10 hover:bg-white/10 transition-colors group"
+                    >
+                      <div className="w-10 h-10 rounded-xl bg-zinc-900 flex items-center justify-center shrink-0 border border-white/5 group-hover:scale-110 transition-transform">
+                        {feature.icon}
+                      </div>
+                      <div className="space-y-1">
+                        <h4 className="text-sm font-bold text-white">{feature.title}</h4>
+                        <p className="text-xs text-zinc-500 leading-relaxed">{feature.desc}</p>
+                      </div>
+                    </motion.div>
+                  ))}
+                </div>
+
+                <button 
+                  onClick={closeNewFeaturesPopup}
+                  className="w-full py-5 bg-white text-black font-black rounded-2xl uppercase tracking-widest text-xs shadow-2xl hover:scale-[1.02] active:scale-95 transition-all flex items-center justify-center gap-2 group"
+                >
+                  Harika, Başlayalım!
+                  <ChevronRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Feedback Modal */}
+      <AnimatePresence>
+        {showFeedbackModal && (
+          <div className="fixed inset-0 z-[700] flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => !isSubmittingFeedback && setShowFeedbackModal(false)}
+              className="absolute inset-0 bg-black/80 backdrop-blur-sm"
+            />
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              className="relative w-full max-w-md glass-card rounded-[2.5rem] p-8 md:p-10 space-y-6"
+            >
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-emerald-500/10 rounded-xl flex items-center justify-center">
+                    <MessageSquare className="w-5 h-5 text-emerald-400" />
+                  </div>
+                  <h3 className="text-2xl font-display font-bold text-white">Geri Bildirim</h3>
+                </div>
+                <button 
+                  onClick={() => setShowFeedbackModal(false)}
+                  className="p-2 text-zinc-500 hover:text-white transition-colors"
+                  disabled={isSubmittingFeedback}
+                >
+                  <X className="w-6 h-6" />
+                </button>
+              </div>
+
+              <div className="space-y-4">
+                <p className="text-sm text-zinc-400 leading-relaxed">
+                  DeneyapAI hakkında ne düşünüyorsunuz? Hata bildirmek veya yeni bir özellik önermek için aşağıdaki alanı kullanabilirsiniz.
+                </p>
+                <textarea 
+                  value={feedbackText}
+                  onChange={(e) => setFeedbackText(e.target.value)}
+                  placeholder="Mesajınızı buraya yazın..."
+                  className="w-full h-40 bg-white/5 border border-white/10 rounded-2xl p-4 text-sm focus:outline-none focus:border-emerald-500/50 transition-all resize-none"
+                  disabled={isSubmittingFeedback}
+                />
+              </div>
+
+              <button 
+                onClick={handleSendFeedback}
+                disabled={isSubmittingFeedback || !feedbackText.trim()}
+                className="w-full py-4 bg-emerald-500 disabled:bg-zinc-800 disabled:text-zinc-500 text-black font-black rounded-2xl uppercase tracking-widest text-xs shadow-xl shadow-emerald-500/10 hover:scale-[1.02] active:scale-95 transition-all flex items-center justify-center gap-2"
+              >
+                {isSubmittingFeedback ? (
+                  <>
+                    <RefreshCw className="w-4 h-4 animate-spin" />
+                    Gönderiliyor...
+                  </>
+                ) : (
+                  <>
+                    <Send className="w-4 h-4" />
+                    Geri Bildirimi İlet
+                  </>
+                )}
+              </button>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Edit Profile Modal */}
+      <AnimatePresence>
+        {showEditProfileModal && (
+          <div className="fixed inset-0 z-[600] flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowEditProfileModal(false)}
+              className="absolute inset-0 bg-black/80 backdrop-blur-sm"
+            />
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              className="relative w-full max-w-md glass-card rounded-[2.5rem] p-8 md:p-10 space-y-6"
+            >
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="text-2xl font-display font-bold text-white">Profili Düzenle</h3>
+                <button 
+                  onClick={() => setShowEditProfileModal(false)}
+                  className="p-2 text-zinc-500 hover:text-white transition-colors"
+                >
+                  <X className="w-6 h-6" />
+                </button>
+              </div>
+
+              <div className="space-y-4">
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 ml-1">Ad Soyad</label>
+                  <input 
+                    type="text" 
+                    value={editName}
+                    onChange={(e) => setEditName(e.target.value)}
+                    className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-emerald-500/50 transition-all"
+                    placeholder="Adınız Soyadınız"
+                  />
+                </div>
+
+                {(profile?.role === 'INSTRUCTOR' || profile?.role === 'REPRESENTATIVE') && (
+                  <>
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 ml-1">Şehir / İl</label>
+                      <input 
+                        type="text" 
+                        value={editCity}
+                        onChange={(e) => setEditCity(e.target.value)}
+                        className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-emerald-500/50 transition-all"
+                        placeholder="Örn: Bitlis, İstanbul"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 ml-1">Kurum / Atölye</label>
+                      <input 
+                        type="text" 
+                        value={editInstitution}
+                        onChange={(e) => setEditInstitution(e.target.value)}
+                        className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-emerald-500/50 transition-all"
+                        placeholder="Örn: Bitlis Deneyap Atölyesi"
+                      />
+                    </div>
+                  </>
+                )}
+
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 ml-1">Teknik Seviye</label>
+                  <div className="grid grid-cols-3 gap-2">
+                    {(['Başlangıç', 'Orta', 'İleri'] as const).map((l) => (
+                      <button
+                        key={l}
+                        onClick={() => setEditLevel(l)}
+                        className={cn(
+                          "py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border",
+                          editLevel === l ? "bg-emerald-500 text-black border-emerald-500" : "bg-white/5 text-zinc-400 border-white/10 hover:bg-white/10"
+                        )}
+                      >
+                        {l}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              <button 
+                onClick={handleUpdateProfile}
+                className="w-full py-4 bg-white text-black font-black rounded-2xl uppercase tracking-widest text-xs shadow-xl hover:scale-[1.02] active:scale-95 transition-all mt-4"
+              >
+                Değişiklikleri Kaydet
+              </button>
             </motion.div>
           </div>
         )}

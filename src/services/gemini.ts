@@ -134,8 +134,11 @@ export async function generateResponse(prompt: string, mode: AppMode, profile: U
   if (mode === 'IMAGE_GEN') {
     contents = `Create a high-quality, professional technological image of: ${prompt}. Focus on scientific and engineering details.`;
   } else {
+    const roleText = profile.role === 'INSTRUCTOR' ? `Eğitmen (${profile.city || 'Belirtilmemiş'})` : 
+                    profile.role === 'REPRESENTATIVE' ? `İl Temsilcisi (${profile.city || 'Belirtilmemiş'})` : 
+                    'Öğrenci';
     const textPart = {
-      text: `Şu an ${profile.level} seviyesindeki ${profile.name} isimli öğrenciye "${modeDescriptions[mode]}" modunda yanıt veriyorsun. Yanıtını bu modun kurallarına ve öğrencinin teknik bilgi seviyesine göre ayarla. Kullanıcı girdisi: ${prompt}`
+      text: `Şu an ${profile.level} seviyesindeki ${profile.name} isimli ${roleText} kullanıcısına "${modeDescriptions[mode]}" modunda yanıt veriyorsun. Yanıtını bu modun kurallarına ve kullanıcının teknik bilgi seviyesine göre ayarla. Eğer kullanıcı bir Eğitmen veya İl Temsilcisi ise, ona uygun bir saygı ve işbirliği dili kullan, bulunduğu il (${profile.city || 'Bilinmiyor'}) hakkında teknolojik gelişmelere atıfta bulunabilirsin. Kullanıcı girdisi: ${prompt}`
     };
 
     if (imageBase64) {
