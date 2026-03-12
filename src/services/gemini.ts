@@ -64,6 +64,26 @@ MOD 11: TEKNOLOJİ HABERLERİ (Ücretsiz)
 2. Haberleri "Milli Teknoloji Hamlesi" perspektifiyle yorumla.
 3. Gençlere yönelik kariyer ve gelişim fırsatlarını vurgula.
 
+MOD 12: TEKNOFEST RAPOR ASISTANI (Premium)
+1. TEKNOFEST raporlama standartlarına (PDR, CDR) uygun teknik rapor yazımı için rehberlik et.
+2. Kullanıcının verdiği proje özetini profesyonel bir teknik rapora dönüştür veya mevcut raporu eleştir.
+3. Özgünlük, teknik detay ve görsellik konularında jüri beklentilerini açıkla.
+
+MOD 13: DEVRE ŞEMASI ÇİZİCİ (Premium)
+1. Kullanıcının istediği devrenin bağlantılarını metin veya ASCII sanatı ile detaylıca açıkla.
+2. Hangi pinin nereye bağlanacağını (Örn: "VCC -> 5V", "GND -> GND") tablo halinde sun.
+3. Devre güvenliği ve kısa devre koruması için ipuçları ver.
+
+MOD 14: KOD DÖNÜŞTÜRÜCÜ (Premium)
+1. Arduino (C++) kodunu Python'a (MicroPython) veya tam tersine dönüştür.
+2. Blok tabanlı kodlama mantığını metin tabanlı koda çevir.
+3. Dönüşüm sırasında kütüphane farklarını ve donanım uyumluluğunu açıkla.
+
+MOD 15: NORMAL SOHBET (Ücretsiz)
+1. Kullanıcıyla teknoloji, bilim veya genel konular hakkında samimi bir sohbet et.
+2. Bir asistan olarak her türlü soruya cevap ver ama her zaman teknoloji odaklı kalmaya çalış.
+3. Eğer kullanıcı bir resim yüklediyse, resmi analiz et ve teknolojik bağlamda açıkla.
+
 Eğer kullanıcı ne yapacağını bilemezse, ona yardımcı olabileceğini söyle ve modları açıkla.
 
 MOBİL CİHAZLAR İÇİN FORMATLAMA KURALLARI (KRİTİK):
@@ -73,7 +93,7 @@ MOBİL CİHAZLAR İÇİN FORMATLAMA KURALLARI (KRİTİK):
 - Bilgileri dikey bir hizada, alt alta sıralayarak sun.
 - Uzun kod satırlarını mantıklı yerlerden bölerek alt satıra taşı.`;
 
-export async function generateResponse(prompt: string, mode: AppMode, profile: UserProfile) {
+export async function generateResponse(prompt: string, mode: AppMode, profile: UserProfile, imageBase64?: string) {
   const apiKey = process.env.GEMINI_API_KEY;
   
   if (!apiKey || apiKey === "undefined" || apiKey === "null" || apiKey === "") {
@@ -96,6 +116,10 @@ export async function generateResponse(prompt: string, mode: AppMode, profile: U
     'QUIZ': 'TEKNOLOJİ QUİZ (Kullanıcıya teknoloji ve kodlama soruları sor)',
     'SHOWCASE': 'TOPLULUK VİTRİNİ (Kullanıcıların paylaştığı projeleri sergile)',
     'LEADERBOARD': 'LİDERLİK TABLOSU (En başarılı kullanıcıları göster)',
+    'REPORT_GEN': 'TEKNOFEST RAPOR ASISTANI (Teknik rapor yazımı ve incelemesi)',
+    'CIRCUIT_ASSISTANT': 'DEVRE ŞEMASI ÇİZİCİ (Bağlantı şemaları ve pin rehberi)',
+    'CODE_CONVERTER': 'KOD DÖNÜŞTÜRÜCÜ (Arduino <-> Python dönüşümü)',
+    'CHAT': 'NORMAL SOHBET (Genel teknoloji ve bilim sohbeti)',
     'SUBSCRIPTION': 'ABONELİK VE PLANLAR (Bilgi sayfası)',
     'FAQ': 'SIKÇA SORULAN SORULAR (Bilgi sayfası)',
     'TERMS': 'HİZMET ŞARTLARI (Bilgi sayfası)',
@@ -105,13 +129,31 @@ export async function generateResponse(prompt: string, mode: AppMode, profile: U
   const isPro = profile.subscriptionTier === 'PRO';
   const modelName = mode === 'IMAGE_GEN' ? "gemini-2.5-flash-image" : (isPro ? "gemini-3.1-pro-preview" : "gemini-3-flash-preview");
 
-  const promptContent = mode === 'IMAGE_GEN' 
-    ? `Create a high-quality, professional technological image of: ${prompt}. Focus on scientific and engineering details.`
-    : `Şu an ${profile.level} seviyesindeki ${profile.name} isimli öğrenciye "${modeDescriptions[mode]}" modunda yanıt veriyorsun. Yanıtını bu modun kurallarına ve öğrencinin teknik bilgi seviyesine göre ayarla. Kullanıcı girdisi: ${prompt}`;
+  let contents: any;
+
+  if (mode === 'IMAGE_GEN') {
+    contents = `Create a high-quality, professional technological image of: ${prompt}. Focus on scientific and engineering details.`;
+  } else {
+    const textPart = {
+      text: `Şu an ${profile.level} seviyesindeki ${profile.name} isimli öğrenciye "${modeDescriptions[mode]}" modunda yanıt veriyorsun. Yanıtını bu modun kurallarına ve öğrencinin teknik bilgi seviyesine göre ayarla. Kullanıcı girdisi: ${prompt}`
+    };
+
+    if (imageBase64) {
+      const imagePart = {
+        inlineData: {
+          mimeType: "image/jpeg",
+          data: imageBase64.split(',')[1]
+        }
+      };
+      contents = { parts: [textPart, imagePart] };
+    } else {
+      contents = textPart.text;
+    }
+  }
 
   const response = await ai.models.generateContent({
     model: modelName,
-    contents: promptContent,
+    contents: contents,
     config: {
       systemInstruction: mode === 'IMAGE_GEN' ? undefined : SYSTEM_INSTRUCTION,
       temperature: mode === 'IMAGE_GEN' ? 1.0 : 0.7,

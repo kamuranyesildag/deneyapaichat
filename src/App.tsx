@@ -268,7 +268,10 @@ export default function App() {
     { id: '3', title: 'Hava Kalitesi İstasyonu', author: 'Mehmet S.', description: 'MQ-135 sensörü ile hava kalitesini ölçüp OLED ekranda gösteren proje.', likes: 15, category: 'Çevre', image: 'https://picsum.photos/seed/air/800/600' }
   ]);
 
-  const PREMIUM_MODES: AppMode[] = ['AI_OPTIMIZER', 'ROADMAP_GEN', 'EXPERT_MENTOR', 'LIVE_VOICE', 'IMAGE_GEN'];
+  const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const PREMIUM_MODES: AppMode[] = ['AI_OPTIMIZER', 'ROADMAP_GEN', 'EXPERT_MENTOR', 'LIVE_VOICE', 'IMAGE_GEN', 'REPORT_GEN', 'CIRCUIT_ASSISTANT', 'CODE_CONVERTER'];
 
   const addNotification = (message: string, type: 'success' | 'error' | 'info' = 'info') => {
     const id = Math.random().toString(36).substring(7);
@@ -664,7 +667,7 @@ export default function App() {
   const getDailyLimit = (tier: UserProfile['subscriptionTier'] = 'FREE') => {
     if (tier === 'PRO') return 999999;
     if (tier === 'BASIC') return 90;
-    return 5;
+    return 10;
   };
 
   const COOLDOWN_TIME = 20;
@@ -824,7 +827,7 @@ export default function App() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!input.trim() || isLoading || !profile) return;
+    if ((!input.trim() && !selectedImage) || isLoading || !profile) return;
 
     if (cooldown > 0) {
       const assistantMessage: Message = {
@@ -848,13 +851,15 @@ export default function App() {
 
     const userMessage: Message = {
       role: 'user',
-      content: input,
+      content: input || (selectedImage ? "Bir resim yükledi." : ""),
       timestamp: Date.now(),
     };
 
     setMessages(prev => [...prev, userMessage]);
     const currentInput = input;
+    const currentImage = selectedImage;
     setInput('');
+    setSelectedImage(null);
     setIsLoading(true);
     setCooldown(COOLDOWN_TIME);
 
@@ -922,7 +927,7 @@ export default function App() {
     }
 
     try {
-      const responseText = await generateResponse(currentInput, mode, profile);
+      const responseText = await generateResponse(currentInput, mode, profile, currentImage || undefined);
       
       if (mode === 'IMAGE_GEN') {
         setGeneratedImages(prev => [{ url: responseText, prompt: currentInput, timestamp: Date.now() }, ...prev]);
@@ -1539,9 +1544,9 @@ export default function App() {
                     { text: 'Sınırsız Mesaj', active: true },
                     { text: 'Sınırsız AI Görsel Üretici', active: true },
                     { text: 'Gelişmiş AI Modelleri (3.1 Pro)', active: true },
-                    { text: 'Proje Yol Haritası & Mentorluk', active: true },
-                    { text: 'Canlı Sesli Sohbet', active: true },
-                    { text: 'Öncelikli Destek & Danışmanlık', active: true },
+                    { text: 'TEKNOFEST Rapor Asistanı', active: true },
+                    { text: 'Devre Şeması & Kod Dönüştürücü', active: true },
+                    { text: 'Canlı Sesli Sohbet & Mentorluk', active: true },
                   ].map((item, i) => (
                     <li key={i} className={cn("flex items-center gap-3 text-sm", item.active ? "text-zinc-300" : "text-zinc-600")}>
                       {item.active ? <Check className="w-4 h-4 text-amber-500" /> : <X className="w-4 h-4" />}
@@ -2166,6 +2171,7 @@ export default function App() {
         <motion.div
           initial={{ opacity: 0, scale: 0.8 }}
           animate={{ opacity: 1, scale: 1 }}
+          transition={{ duration: 0.4 }}
           className="relative"
         >
           <div className="w-24 h-24 bg-emerald-500 rounded-[2rem] flex items-center justify-center shadow-2xl shadow-emerald-500/20 rotate-12 mb-8">
@@ -2173,7 +2179,7 @@ export default function App() {
           </div>
           <motion.div
             animate={{ rotate: 360 }}
-            transition={{ repeat: Infinity, duration: 4, ease: "linear" }}
+            transition={{ repeat: Infinity, duration: 2, ease: "linear" }}
             className="absolute -inset-4 border-2 border-dashed border-emerald-500/20 rounded-full"
           />
         </motion.div>
@@ -2184,7 +2190,7 @@ export default function App() {
             <motion.div
               key={i}
               animate={{ y: [0, -5, 0] }}
-              transition={{ repeat: Infinity, duration: 1, delay: i * 0.2 }}
+              transition={{ repeat: Infinity, duration: 0.6, delay: i * 0.1 }}
               className="w-1.5 h-1.5 bg-emerald-500 rounded-full"
             />
           ))}
@@ -2540,6 +2546,19 @@ export default function App() {
               <nav className="flex-1 p-4 space-y-1 overflow-y-auto custom-scrollbar">
                 <div className="px-4 py-2 text-[10px] font-bold uppercase tracking-[0.2em] text-zinc-500 mb-1">Ücretsiz Modlar</div>
                 <button
+                  onClick={() => handleModeChange('CHAT')}
+                  className={cn(
+                    "w-full flex items-center gap-3 px-4 py-2.5 rounded-xl transition-all duration-200 group",
+                    mode === 'CHAT' && activeTab === 'chat'
+                      ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20" 
+                      : "text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200"
+                  )}
+                >
+                  <MessageSquare className={cn("w-4 h-4", mode === 'CHAT' ? "text-emerald-400" : "group-hover:text-zinc-200")} />
+                  <span className="font-semibold text-sm">Normal Sohbet</span>
+                </button>
+
+                <button
                   onClick={() => handleModeChange('PROJECT_GEN')}
                   className={cn(
                     "w-full flex items-center gap-3 px-4 py-2.5 rounded-xl transition-all duration-200 group",
@@ -2688,6 +2707,66 @@ export default function App() {
                     <Lock className="w-3 h-3 text-amber-500/40" />
                   ) : (
                     <span className="text-[8px] font-black px-1 rounded bg-amber-500/20 text-amber-400 uppercase">Pro</span>
+                  )}
+                </button>
+
+                <button
+                  onClick={() => handleModeChange('REPORT_GEN')}
+                  className={cn(
+                    "w-full flex items-center justify-between px-4 py-2.5 rounded-xl transition-all duration-200 group",
+                    mode === 'REPORT_GEN' && activeTab === 'chat'
+                      ? "bg-blue-500/10 text-blue-400 border border-blue-500/20" 
+                      : "text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200"
+                  )}
+                >
+                  <div className="flex items-center gap-3">
+                    <FileText className={cn("w-4 h-4", mode === 'REPORT_GEN' ? "text-blue-400" : "group-hover:text-zinc-200")} />
+                    <span className="font-semibold text-sm">TEKNOFEST Raporu</span>
+                  </div>
+                  {profile?.subscriptionTier !== 'PRO' ? (
+                    <Lock className="w-3 h-3 text-blue-500/40" />
+                  ) : (
+                    <span className="text-[8px] font-black px-1 rounded bg-blue-500/20 text-blue-400 uppercase">Pro</span>
+                  )}
+                </button>
+
+                <button
+                  onClick={() => handleModeChange('CIRCUIT_ASSISTANT')}
+                  className={cn(
+                    "w-full flex items-center justify-between px-4 py-2.5 rounded-xl transition-all duration-200 group",
+                    mode === 'CIRCUIT_ASSISTANT' && activeTab === 'chat'
+                      ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20" 
+                      : "text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200"
+                  )}
+                >
+                  <div className="flex items-center gap-3">
+                    <Code2 className={cn("w-4 h-4", mode === 'CIRCUIT_ASSISTANT' ? "text-emerald-400" : "group-hover:text-zinc-200")} />
+                    <span className="font-semibold text-sm">Devre Şeması</span>
+                  </div>
+                  {profile?.subscriptionTier !== 'PRO' ? (
+                    <Lock className="w-3 h-3 text-emerald-500/40" />
+                  ) : (
+                    <span className="text-[8px] font-black px-1 rounded bg-emerald-500/20 text-emerald-400 uppercase">Pro</span>
+                  )}
+                </button>
+
+                <button
+                  onClick={() => handleModeChange('CODE_CONVERTER')}
+                  className={cn(
+                    "w-full flex items-center justify-between px-4 py-2.5 rounded-xl transition-all duration-200 group",
+                    mode === 'CODE_CONVERTER' && activeTab === 'chat'
+                      ? "bg-indigo-500/10 text-indigo-400 border border-indigo-500/20" 
+                      : "text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200"
+                  )}
+                >
+                  <div className="flex items-center gap-3">
+                    <RefreshCw className={cn("w-4 h-4", mode === 'CODE_CONVERTER' ? "text-indigo-400" : "group-hover:text-zinc-200")} />
+                    <span className="font-semibold text-sm">Kod Dönüştürücü</span>
+                  </div>
+                  {profile?.subscriptionTier !== 'PRO' ? (
+                    <Lock className="w-3 h-3 text-indigo-500/40" />
+                  ) : (
+                    <span className="text-[8px] font-black px-1 rounded bg-indigo-500/20 text-indigo-400 uppercase">Pro</span>
                   )}
                 </button>
 
@@ -2872,10 +2951,12 @@ export default function App() {
                           { name: 'Günlük Mesaj Limiti', free: '5', basic: '90', pro: 'Sınırsız' },
                           { name: 'Temel Modlar', free: '✅', basic: '✅', pro: '✅' },
                           { name: 'Kod Hata Ayıklama', free: '✅', basic: '✅', pro: '✅' },
+                          { name: 'TEKNOFEST Raporu', free: '✖️', basic: '✖️', pro: '✅' },
+                          { name: 'Devre Şeması Çizici', free: '✖️', basic: '✖️', pro: '✅' },
+                          { name: 'Kod Dönüştürücü', free: '✖️', basic: '✖️', pro: '✅' },
                           { name: 'AI Kod Optimizasyonu', free: '✖️', basic: '✖️', pro: '✅' },
                           { name: 'Proje Yol Haritası', free: '✖️', basic: '✖️', pro: '✅' },
                           { name: 'Uzman Mentorluk', free: '✖️', basic: '✖️', pro: '✅' },
-                          { name: 'Öncelikli Destek', free: '✖️', basic: '✖️', pro: '✅' },
                         ].map((row, i) => (
                           <tr key={i} className="border-b border-zinc-800/50 hover:bg-zinc-800/30 transition-colors">
                             <td className="py-3 px-2 text-zinc-300 font-medium">{row.name}</td>
@@ -3013,6 +3094,7 @@ export default function App() {
             <div className="hidden lg:block px-4 text-[10px] font-black uppercase tracking-[0.2em] text-zinc-600 mb-2">Akıllı Araçlar</div>
             <div className="space-y-1.5">
               {[
+                { id: 'CHAT', icon: MessageSquare, label: 'Normal Sohbet', color: 'emerald' },
                 { id: 'PROJECT_GEN', icon: Lightbulb, label: 'Proje Üretici', color: 'emerald' },
                 { id: 'QUIZ', icon: Award, label: 'Bilgi Yarışması', color: 'amber' },
                 { id: 'LEADERBOARD', icon: Trophy, label: 'Liderlik Tablosu', color: 'amber' },
@@ -3045,6 +3127,9 @@ export default function App() {
             <div className="space-y-1.5">
               {[
                 { id: 'IMAGE_GEN', icon: ImageIcon, label: 'Görsel Üretici', color: 'purple', premium: true },
+                { id: 'REPORT_GEN', icon: FileText, label: 'TEKNOFEST Raporu', color: 'blue', premium: true },
+                { id: 'CIRCUIT_ASSISTANT', icon: Code2, label: 'Devre Şeması', color: 'emerald', premium: true },
+                { id: 'CODE_CONVERTER', icon: RefreshCw, label: 'Kod Dönüştürücü', color: 'indigo', premium: true },
                 { id: 'AI_OPTIMIZER', icon: Zap, label: 'Optimizasyon', color: 'amber', premium: true },
                 { id: 'ROADMAP_GEN', icon: ChevronRight, label: 'Yol Haritası', color: 'blue', premium: true },
                 { id: 'LIVE_VOICE', icon: Mic, label: 'Sesli Sohbet', color: 'red', premium: true },
@@ -3265,61 +3350,101 @@ export default function App() {
                             mode === 'IMAGE_GEN' ? 'Görsel Üretici' :
                             mode === 'DAILY_CHALLENGE' ? 'Günün Görevi' :
                             mode === 'TECH_NEWS' ? 'Teknoloji Haberleri' :
+                            mode === 'CHAT' ? 'Normal Sohbet' :
                             'Uzman Mentor'}
                     </span>
                   </div>
 
-                  <div className="flex items-end gap-3">
-                    <textarea
-                      value={input}
-                      onChange={(e) => setInput(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter' && !e.shiftKey) {
-                          e.preventDefault();
-                          handleSubmit(e);
+                  <div className="flex flex-col gap-3">
+                    {selectedImage && (
+                      <div className="px-8 pt-4 relative group/img">
+                        <div className="relative w-24 h-24 rounded-2xl overflow-hidden border border-white/10 shadow-2xl">
+                          <img src={selectedImage} alt="Selected" className="w-full h-full object-cover" />
+                          <button 
+                            onClick={() => setSelectedImage(null)}
+                            className="absolute inset-0 bg-black/60 flex items-center justify-center opacity-0 group-hover/img:opacity-100 transition-opacity"
+                          >
+                            <X className="w-6 h-6 text-white" />
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                    <div className="flex items-end gap-3">
+                      <textarea
+                        value={input}
+                        onChange={(e) => setInput(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' && !e.shiftKey) {
+                            e.preventDefault();
+                            handleSubmit(e);
+                          }
+                        }}
+                        disabled={isLoading || cooldown > 0}
+                        placeholder={
+                          mode === 'PROJECT_GEN' ? "Neler tasarlamak istersin? Malzemelerini yaz..." : 
+                          mode === 'DEBUGGER' ? "Hatalı kodunu buraya yapıştır..." :
+                          mode === 'IMAGE_GEN' ? "Hayalindeki teknolojik tasarımı tarif et..." :
+                          mode === 'CHAT' ? "DeneyapAI ile sohbete başla..." :
+                          "DeneyapAI'ya bir soru sor..."
                         }
-                      }}
-                      disabled={isLoading || cooldown > 0}
-                      placeholder={
-                        mode === 'PROJECT_GEN' ? "Neler tasarlamak istersin? Malzemelerini yaz..." : 
-                        mode === 'DEBUGGER' ? "Hatalı kodunu buraya yapıştır..." :
-                        mode === 'IMAGE_GEN' ? "Hayalindeki teknolojik tasarımı tarif et..." :
-                        "DeneyapAI'ya bir soru sor..."
-                      }
-                      className="w-full bg-transparent border-none rounded-[3rem] p-8 pr-40 focus:outline-none transition-all min-h-[120px] max-h-[450px] resize-none text-base md:text-lg font-medium placeholder:text-zinc-700 custom-scrollbar"
-                      rows={1}
-                    />
-                    
-                    <div className="absolute right-6 bottom-6 flex items-center gap-3">
-                      <button
-                        type="button"
-                        onClick={toggleVoiceInput}
-                        className={cn(
-                          "p-4 rounded-2xl transition-all duration-500 shadow-xl",
-                          isListening ? "bg-red-500 text-white animate-pulse shadow-red-500/20" : "text-zinc-500 hover:text-white hover:bg-white/5"
-                        )}
-                      >
-                        {isListening ? <MicOff className="w-6 h-6" /> : <Mic className="w-6 h-6" />}
-                      </button>
+                        className="w-full bg-transparent border-none rounded-[3rem] p-8 pr-48 focus:outline-none transition-all min-h-[120px] max-h-[450px] resize-none text-base md:text-lg font-medium placeholder:text-zinc-700 custom-scrollbar"
+                        rows={1}
+                      />
                       
-                      <button 
-                        type="submit"
-                        disabled={!input.trim() || isLoading || cooldown > 0}
-                        className={cn(
-                          "w-16 h-16 rounded-2xl flex items-center justify-center transition-all duration-500 shadow-2xl active:scale-95 group/btn",
-                          !input.trim() || isLoading || cooldown > 0
-                            ? "bg-zinc-800 text-zinc-600 cursor-not-allowed"
-                            : "bg-white text-black hover:scale-105 shadow-white/10"
-                        )}
-                      >
-                        {cooldown > 0 ? (
-                          <span className="text-sm font-black">{cooldown}</span>
-                        ) : isLoading ? (
-                          <RefreshCw className="w-6 h-6 animate-spin" />
-                        ) : (
-                          <Send className="w-6 h-6 group-hover/btn:translate-x-1 group-hover/btn:-translate-y-1 transition-transform duration-500" />
-                        )}
-                      </button>
+                      <div className="absolute right-6 bottom-6 flex items-center gap-3">
+                        <input 
+                          type="file"
+                          ref={fileInputRef}
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (file) {
+                              const reader = new FileReader();
+                              reader.onloadend = () => {
+                                setSelectedImage(reader.result as string);
+                              };
+                              reader.readAsDataURL(file);
+                            }
+                          }}
+                          accept="image/*"
+                          className="hidden"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => fileInputRef.current?.click()}
+                          className="p-4 rounded-2xl transition-all duration-500 shadow-xl text-zinc-500 hover:text-white hover:bg-white/5"
+                        >
+                          <ImageIcon className="w-6 h-6" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={toggleVoiceInput}
+                          className={cn(
+                            "p-4 rounded-2xl transition-all duration-500 shadow-xl",
+                            isListening ? "bg-red-500 text-white animate-pulse shadow-red-500/20" : "text-zinc-500 hover:text-white hover:bg-white/5"
+                          )}
+                        >
+                          {isListening ? <MicOff className="w-6 h-6" /> : <Mic className="w-6 h-6" />}
+                        </button>
+                        
+                        <button 
+                          type="submit"
+                          disabled={(!input.trim() && !selectedImage) || isLoading || cooldown > 0}
+                          className={cn(
+                            "w-16 h-16 rounded-2xl flex items-center justify-center transition-all duration-500 shadow-2xl active:scale-95 group/btn",
+                            (!input.trim() && !selectedImage) || isLoading || cooldown > 0
+                              ? "bg-zinc-800 text-zinc-600 cursor-not-allowed"
+                              : "bg-white text-black hover:scale-105 shadow-white/10"
+                          )}
+                        >
+                          {cooldown > 0 ? (
+                            <span className="text-sm font-black">{cooldown}</span>
+                          ) : isLoading ? (
+                            <RefreshCw className="w-6 h-6 animate-spin" />
+                          ) : (
+                            <Send className="w-6 h-6 group-hover/btn:translate-x-1 group-hover/btn:-translate-y-1 transition-transform duration-500" />
+                          )}
+                        </button>
+                      </div>
                     </div>
                   </div>
                 </div>
