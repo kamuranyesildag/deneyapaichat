@@ -12,9 +12,6 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const PORT = 3000;
 
-// Initialize Stripe lazily - REMOVED AS PER USER REQUEST
-// Using generic payment verification for Google Pay API
-
 app.use(express.json());
 
 // API Routes

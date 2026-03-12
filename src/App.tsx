@@ -317,39 +317,39 @@ export default function App() {
   const handleSendFeedback = async () => {
     if (!feedbackText.trim() || !profile) return;
     
-    setIsSubmittingFeedback(true);
-    try {
-      if (db) {
+    const subject = encodeURIComponent(`DeneyapAI Geri Bildirim: ${profile.name}`);
+    const body = encodeURIComponent(
+      `Yeni Geri Bildirim\n` +
+      `------------------\n` +
+      `Gönderen: ${profile.name} (${profile.email})\n` +
+      `Rol: ${profile.role || 'Öğrenci'}\n` +
+      `Şehir: ${profile.city || 'Belirtilmemiş'}\n\n` +
+      `Mesaj:\n${feedbackText}`
+    );
+    
+    const mailtoUrl = `mailto:imranyesildag123@gmail.com?subject=${subject}&body=${body}`;
+    
+    // Varsayılan e-posta uygulamasını aç
+    window.location.href = mailtoUrl;
+    
+    addNotification("E-posta uygulaması açıldı! Lütfen mesajı gönderin. ❤️", "success");
+    setFeedbackText('');
+    setShowFeedbackModal(false);
+
+    // İsteğe bağlı: Firestore'a yine de kaydet
+    if (db) {
+      try {
         const { collection, addDoc, serverTimestamp } = await import('firebase/firestore');
-        
-        // Bu koleksiyon "Trigger Email" extension'ı ile bağlanabilir
         await addDoc(collection(db, 'feedbacks'), {
-          to: ['imranyesildag123@gmail.com'],
-          message: {
-            subject: `DeneyapAI Geri Bildirim: ${profile.name}`,
-            text: feedbackText,
-            html: `
-              <h3>Yeni Geri Bildirim</h3>
-              <p><strong>Gönderen:</strong> ${profile.name} (${profile.email})</p>
-              <p><strong>Rol:</strong> ${profile.role || 'Öğrenci'}</p>
-              <p><strong>Şehir:</strong> ${profile.city || 'Belirtilmemiş'}</p>
-              <p><strong>Mesaj:</strong></p>
-              <p>${feedbackText.replace(/\n/g, '<br>')}</p>
-            `
-          },
-          userId: firebaseUser?.uid,
-          timestamp: serverTimestamp()
+          name: profile.name,
+          email: profile.email,
+          message: feedbackText,
+          timestamp: serverTimestamp(),
+          type: 'gmail_draft_initiated'
         });
-        
-        addNotification("Geri bildiriminiz başarıyla iletildi! Teşekkürler. ❤️", "success");
-        setFeedbackText('');
-        setShowFeedbackModal(false);
+      } catch (e) {
+        console.error("Firestore backup error:", e);
       }
-    } catch (error) {
-      console.error("Feedback error:", error);
-      addNotification("Geri bildirim gönderilirken bir hata oluştu.", "error");
-    } finally {
-      setIsSubmittingFeedback(false);
     }
   };
 
