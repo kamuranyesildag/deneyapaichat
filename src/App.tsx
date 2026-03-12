@@ -59,7 +59,8 @@ import {
   HelpCircle,
   FileText,
   Bell,
-  Trophy
+  Trophy,
+  GraduationCap
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import Markdown from 'react-markdown';
@@ -210,6 +211,14 @@ const CHANGELOG: ChangelogItem[] = [
   }
 ];
 
+const LICENSE_CODES = [
+  'DENEYAP_PRO_2026',
+  'BITLIS_STUDIO_PRO',
+  'TEKNOFEST_GURU',
+  'KAMURAN_SPECIAL',
+  'EGITMEN_PRO_V3'
+];
+
 const DAILY_TIPS = [
   "Deneyap Kart'ın dahili Wi-Fi ve Bluetooth özelliği ile IoT projeleri geliştirebilirsin.",
   "HC-SR04 mesafe sensörü ile engel tanımayan robotlar yapabilirsin.",
@@ -262,11 +271,9 @@ export default function App() {
   const [showQuizResult, setShowQuizResult] = useState(false);
   const [showShowcaseModal, setShowShowcaseModal] = useState(false);
   const [selectedProject, setSelectedProject] = useState<{id: string, title: string, author: string, description: string, likes: number, category: string, image?: string} | null>(null);
-  const [showcaseProjects, setShowcaseProjects] = useState<{id: string, title: string, author: string, description: string, likes: number, category: string, image?: string}[]>([
-    { id: '1', title: 'Akıllı Sera Sistemi', author: 'Ahmet Y.', description: 'Deneyap Kart ve nem sensörü kullanarak geliştirdiğim otomatik sulama sistemi.', likes: 24, category: 'Tarım', image: 'https://picsum.photos/seed/greenhouse/800/600' },
-    { id: '2', title: 'Engel Tanımayan Robot', author: 'Elif K.', description: 'HC-SR04 ve servo motor ile engelleri algılayıp yön değiştiren robot.', likes: 42, category: 'Robotik', image: 'https://picsum.photos/seed/robot/800/600' },
-    { id: '3', title: 'Hava Kalitesi İstasyonu', author: 'Mehmet S.', description: 'MQ-135 sensörü ile hava kalitesini ölçüp OLED ekranda gösteren proje.', likes: 15, category: 'Çevre', image: 'https://picsum.photos/seed/air/800/600' }
-  ]);
+  const [showcaseProjects, setShowcaseProjects] = useState<{id: string, title: string, author: string, description: string, likes: number, category: string, image?: string}[]>([]);
+  const [licenseInput, setLicenseInput] = useState('');
+  const [showInstructorModal, setShowInstructorModal] = useState(false);
 
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -279,6 +286,32 @@ export default function App() {
     setTimeout(() => {
       setNotifications(prev => prev.filter(n => n.id !== id));
     }, 5000);
+  };
+
+  const handleActivateLicense = async () => {
+    if (!profile) return;
+    
+    const code = licenseInput.trim().toUpperCase();
+    if (LICENSE_CODES.includes(code)) {
+      const updated: UserProfile = { 
+        ...profile, 
+        role: 'INSTRUCTOR', 
+        subscriptionTier: 'PRO',
+        isPremium: true
+      };
+      setProfile(updated);
+      localStorage.setItem('tekno_nova_profile', JSON.stringify(updated));
+      
+      if (firebaseUser && db) {
+        const { doc, setDoc } = await import('firebase/firestore');
+        await setDoc(doc(db, 'users', firebaseUser.uid), updated, { merge: true });
+      }
+      
+      addNotification("Lisans başarıyla aktif edildi! Pro özellikler açıldı. 🎓", "success");
+      setLicenseInput('');
+    } else {
+      addNotification("Geçersiz lisans kodu. Lütfen kontrol edin.", "error");
+    }
   };
 
   const handleEnable2FA = () => {
@@ -400,7 +433,6 @@ export default function App() {
     };
   }, []);
   const [premiumStep, setPremiumStep] = useState<1 | 2>(1);
-  const [licenseInput, setLicenseInput] = useState('');
   const [licenseError, setLicenseError] = useState('');
   const [isPaymentLoading, setIsPaymentLoading] = useState(false);
   const [firebaseUser, setFirebaseUser] = useState<FirebaseUser | null>(null);
@@ -965,6 +997,12 @@ export default function App() {
         errorMessage = 'Gemini API anahtarı bulunamadı. Lütfen Vercel panelinden GEMINI_API_KEY ortam değişkenini ayarladığınızdan emin olun.';
       } else if (error.message?.includes('API key not valid')) {
         errorMessage = 'Geçersiz API anahtarı. Lütfen API anahtarınızı kontrol edin.';
+      } else if (error.status === 429 || error.message?.includes('429')) {
+        errorMessage = 'Çok fazla istek gönderildi. Lütfen biraz bekleyip tekrar deneyin (Kota dolmuş olabilir).';
+      } else if (error.message?.includes('safety')) {
+        errorMessage = 'Üzgünüm, bu içerik güvenlik filtrelerine takıldı. Lütfen farklı bir şekilde sormayı deneyin.';
+      } else if (error.message?.includes('fetch') || error.message?.includes('Network')) {
+        errorMessage = 'İnternet bağlantısı sorunu oluştu. Lütfen bağlantınızı kontrol edip tekrar deneyin.';
       }
 
       setMessages(prev => [...prev, {
@@ -1044,13 +1082,50 @@ export default function App() {
     }
   };
 
-  const handleLikeProject = (id: string) => {
-    setShowcaseProjects(prev => prev.map(p => p.id === id ? { ...p, likes: p.likes + 1 } : p));
-    addNotification("Proje beğenildi! ❤️", "success");
+  const isUserPro = (p: UserProfile | null) => {
+    if (!p) return false;
+    return p.subscriptionTier === 'PRO' || p.role === 'INSTRUCTOR' || p.role === 'REPRESENTATIVE';
+  };
+
+  useEffect(() => {
+    if (db) {
+      const fetchShowcase = async () => {
+        try {
+          const { collection, getDocs, query, orderBy, limit } = await import('firebase/firestore');
+          const q = query(collection(db, 'showcase'), orderBy('likes', 'desc'), limit(50));
+          const querySnapshot = await getDocs(q);
+          const projects: any[] = [];
+          querySnapshot.forEach((doc) => {
+            projects.push({ id: doc.id, ...doc.data() });
+          });
+          setShowcaseProjects(projects);
+        } catch (e) {
+          console.error("Error fetching showcase:", e);
+        }
+      };
+      fetchShowcase();
+    }
+  }, [db]);
+
+  const handleLikeProject = async (id: string) => {
+    if (!db) return;
+    try {
+      const { doc, updateDoc, increment } = await import('firebase/firestore');
+      await updateDoc(doc(db, 'showcase', id), {
+        likes: increment(1)
+      });
+      setShowcaseProjects(prev => prev.map(p => p.id === id ? { ...p, likes: p.likes + 1 } : p));
+      if (selectedProject?.id === id) {
+        setSelectedProject({ ...selectedProject, likes: selectedProject.likes + 1 });
+      }
+      addNotification("Proje beğenildi! ❤️", "success");
+    } catch (e) {
+      console.error("Error liking project:", e);
+    }
   };
 
   const handleModeChange = (newMode: AppMode) => {
-    if (PREMIUM_MODES.includes(newMode) && profile?.subscriptionTier !== 'PRO') {
+    if (PREMIUM_MODES.includes(newMode) && !isUserPro(profile)) {
       setMode('SUBSCRIPTION');
       setActiveTab('modes');
       setShowMobileMenu(false);
@@ -1303,6 +1378,61 @@ export default function App() {
               </div>
 
               <div className="glass-card rounded-[2.5rem] p-8 space-y-6">
+                <h4 className="text-xs font-black uppercase tracking-widest text-zinc-500">Lisans Aktivasyonu</h4>
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 bg-purple-500/10 rounded-xl flex items-center justify-center">
+                        <Key className="w-5 h-5 text-purple-400" />
+                      </div>
+                      <div>
+                        <div className="text-sm font-bold">Mevcut Rol</div>
+                        <div className="text-[10px] text-zinc-500 uppercase font-black tracking-tighter">
+                          {profile?.role === 'INSTRUCTOR' ? 'Eğitmen' : profile?.role === 'REPRESENTATIVE' ? 'İl Temsilcisi' : 'Öğrenci'}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  {profile?.role !== 'INSTRUCTOR' && profile?.role !== 'REPRESENTATIVE' ? (
+                    <div className="space-y-3">
+                      <div className="relative">
+                        <input
+                          type="text"
+                          value={licenseInput}
+                          onChange={(e) => setLicenseInput(e.target.value)}
+                          placeholder="Lisans Kodunu Girin"
+                          className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-purple-500/50 transition-all uppercase"
+                        />
+                      </div>
+                      <button 
+                        onClick={handleActivateLicense}
+                        className="w-full py-3 rounded-xl bg-purple-500 hover:bg-purple-400 text-white font-black text-[10px] uppercase tracking-widest transition-all shadow-lg shadow-purple-500/20"
+                      >
+                        Lisansı Aktifleştir
+                      </button>
+                      <button 
+                        onClick={() => setShowInstructorModal(true)}
+                        className="w-full py-3 rounded-xl bg-white/5 border border-white/10 text-zinc-400 font-black text-[10px] uppercase tracking-widest hover:bg-white/10 transition-all flex items-center justify-center gap-2"
+                      >
+                        <GraduationCap className="w-4 h-4" />
+                        Eğitmenim
+                      </button>
+                      <p className="text-[9px] text-zinc-500 text-center italic">
+                        Eğitmen veya İl Temsilcisiyseniz lisans kodu için Kamuran Yeşildağ ile iletişime geçin.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="p-4 bg-emerald-500/10 border border-emerald-500/20 rounded-xl">
+                      <p className="text-[10px] text-emerald-400 font-bold text-center">
+                        Lisansınız aktif! Tüm Pro özelliklere erişiminiz var.
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="glass-card rounded-[2.5rem] p-8 space-y-6">
                 <h4 className="text-xs font-black uppercase tracking-widest text-zinc-500">Hesap Güvenliği</h4>
                 <div className="space-y-4">
                   <div className="flex items-center justify-between">
@@ -1532,35 +1662,44 @@ export default function App() {
                 </button>
               </div>
 
-              <div className="bg-gradient-to-br from-amber-500/10 to-orange-600/10 p-8 rounded-[2.5rem] border border-amber-500/30 flex flex-col relative overflow-hidden group">
-                <div className="absolute top-0 right-0 bg-amber-500 text-black text-[10px] font-black px-4 py-1 rounded-bl-2xl uppercase tracking-widest">En Güçlü</div>
-                <div className="mb-8">
-                  <h3 className="text-xl font-bold mb-2 text-amber-400">Pro</h3>
-                  <div className="text-3xl font-bold text-white mb-1">169,99 TL</div>
-                  <p className="text-zinc-500 text-xs text-amber-500/60">Sınırları zorlayan teknoloji fatihleri için.</p>
+                <div className="bg-gradient-to-br from-amber-500/10 to-orange-600/10 p-8 rounded-[2.5rem] border border-amber-500/30 flex flex-col relative overflow-hidden group">
+                  <div className="absolute top-0 right-0 bg-amber-500 text-black text-[10px] font-black px-4 py-1 rounded-bl-2xl uppercase tracking-widest">En Güçlü</div>
+                  <div className="mb-8">
+                    <h3 className="text-xl font-bold mb-2 text-amber-400">Pro</h3>
+                    <div className="text-3xl font-bold text-white mb-1">169,99 TL</div>
+                    <p className="text-zinc-500 text-xs text-amber-500/60">Sınırları zorlayan teknoloji fatihleri için.</p>
+                  </div>
+                  <ul className="space-y-4 mb-8 flex-1">
+                    {[
+                      { text: 'Sınırsız Mesaj', active: true },
+                      { text: 'Sınırsız AI Görsel Üretici', active: true },
+                      { text: 'Gelişmiş AI Modelleri (3.1 Pro)', active: true },
+                      { text: 'TEKNOFEST Rapor Asistanı', active: true },
+                      { text: 'Devre Şeması & Kod Dönüştürücü', active: true },
+                      { text: 'Canlı Sesli Sohbet & Mentorluk', active: true },
+                    ].map((item, i) => (
+                      <li key={i} className={cn("flex items-center gap-3 text-sm", item.active ? "text-zinc-300" : "text-zinc-600")}>
+                        {item.active ? <Check className="w-4 h-4 text-amber-500" /> : <X className="w-4 h-4" />}
+                        {item.text}
+                      </li>
+                    ))}
+                  </ul>
+                  <button 
+                    onClick={() => window.open('https://www.shopier.com/bitlisstudyo/44761166', '_blank')}
+                    className="w-full py-4 rounded-2xl bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-400 hover:to-orange-500 text-white font-bold text-sm transition-all shadow-lg shadow-amber-500/20 mb-6"
+                  >
+                    Pro'ya Geç
+                  </button>
+                  
+                  <div className="p-4 bg-black/40 rounded-2xl border border-amber-500/20">
+                    <p className="text-[10px] text-amber-500/80 leading-relaxed italic mb-2">
+                      "Değerli Deneyap Atölyeleri Hocalarım Ve İl Temsilcileri Hocalarım Sizlerin Erişimi İçin Pro Sürüm sizlere Her Zaman açık Başım Gözüm Üstüne Hoşgeldiniz:) Lisans kodu almak için lütfen benimle iletişime geçin."
+                    </p>
+                    <p className="text-[9px] text-zinc-500 font-bold text-right">
+                      — Kamuran Yeşildağ<br/>DeneyapAI Kurucusu
+                    </p>
+                  </div>
                 </div>
-                <ul className="space-y-4 mb-8 flex-1">
-                  {[
-                    { text: 'Sınırsız Mesaj', active: true },
-                    { text: 'Sınırsız AI Görsel Üretici', active: true },
-                    { text: 'Gelişmiş AI Modelleri (3.1 Pro)', active: true },
-                    { text: 'TEKNOFEST Rapor Asistanı', active: true },
-                    { text: 'Devre Şeması & Kod Dönüştürücü', active: true },
-                    { text: 'Canlı Sesli Sohbet & Mentorluk', active: true },
-                  ].map((item, i) => (
-                    <li key={i} className={cn("flex items-center gap-3 text-sm", item.active ? "text-zinc-300" : "text-zinc-600")}>
-                      {item.active ? <Check className="w-4 h-4 text-amber-500" /> : <X className="w-4 h-4" />}
-                      {item.text}
-                    </li>
-                  ))}
-                </ul>
-                <button 
-                  onClick={() => window.open('https://www.shopier.com/bitlisstudyo/44761166', '_blank')}
-                  className="w-full py-4 rounded-2xl bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-400 hover:to-orange-500 text-white font-bold text-sm transition-all shadow-lg shadow-amber-500/20"
-                >
-                  Pro'ya Geç
-                </button>
-              </div>
             </div>
 
             <div className="max-w-2xl mx-auto glass p-8 rounded-[2.5rem] border border-white/5 space-y-6">
@@ -1780,7 +1919,7 @@ export default function App() {
               </div>
               <div className="px-4 py-2 bg-purple-500/10 border border-purple-500/20 rounded-xl">
                 <span className="text-[10px] font-black uppercase tracking-widest text-purple-400">
-                  Kalan Hak: {profile?.subscriptionTier === 'PRO' ? 'Sınırsız' : profile?.subscriptionTier === 'BASIC' ? 25 - ((profile?.stats as any)?.imagesGenerated || 0) : 2 - ((profile?.stats as any)?.imagesGenerated || 0)}
+                  Kalan Hak: {isUserPro(profile) ? 'Sınırsız' : profile?.subscriptionTier === 'BASIC' ? 25 - ((profile?.stats as any)?.imagesGenerated || 0) : 2 - ((profile?.stats as any)?.imagesGenerated || 0)}
                 </span>
               </div>
             </div>
@@ -1946,6 +2085,204 @@ export default function App() {
                 <div className="py-20 text-center glass-card rounded-[2.5rem] border-dashed border-white/5">
                   <Radio className="w-12 h-12 text-blue-500/20 mx-auto mb-4" />
                   <p className="text-zinc-500 text-sm">Gündemi yakalamak için "Son haberleri getir" yazabilirsin.</p>
+                </div>
+              ) : (
+                <div className="glass-card rounded-[2.5rem] p-8 md:p-12">
+                  <div className="markdown-body">
+                    <Markdown>
+                      {messages.filter(m => m.role === 'assistant').pop()?.content || ""}
+                    </Markdown>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      }
+
+      if (mode === 'REPORT_GEN') {
+        return (
+          <div className="p-4 md:p-12 max-w-6xl mx-auto pb-64 space-y-8">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 bg-blue-500/10 rounded-2xl flex items-center justify-center">
+                <FileText className="text-blue-400 w-6 h-6" />
+              </div>
+              <div>
+                <h2 className="text-3xl font-display font-bold">TEKNOFEST Rapor Asistanı</h2>
+                <p className="text-zinc-500 text-sm">Proje özetini profesyonel bir teknik rapora dönüştürelim.</p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 gap-6">
+              {messages.filter(m => m.role === 'assistant').length === 0 ? (
+                <div className="py-20 text-center glass-card rounded-[2.5rem] border-dashed border-white/5">
+                  <FileText className="w-12 h-12 text-blue-500/20 mx-auto mb-4" />
+                  <p className="text-zinc-500 text-sm">Projenin amacını, yöntemini ve beklenen sonuçlarını yaz.</p>
+                </div>
+              ) : (
+                <div className="glass-card rounded-[2.5rem] p-8 md:p-12">
+                  <div className="markdown-body">
+                    <Markdown>
+                      {messages.filter(m => m.role === 'assistant').pop()?.content || ""}
+                    </Markdown>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      }
+
+      if (mode === 'CIRCUIT_ASSISTANT') {
+        return (
+          <div className="p-4 md:p-12 max-w-6xl mx-auto pb-64 space-y-8">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 bg-emerald-500/10 rounded-2xl flex items-center justify-center">
+                <Cpu className="text-emerald-400 w-6 h-6" />
+              </div>
+              <div>
+                <h2 className="text-3xl font-display font-bold">Devre Şeması Çizici</h2>
+                <p className="text-zinc-500 text-sm">Hangi bileşenleri kullanacaksın? Bağlantıları planlayalım.</p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 gap-6">
+              {messages.filter(m => m.role === 'assistant').length === 0 ? (
+                <div className="py-20 text-center glass-card rounded-[2.5rem] border-dashed border-white/5">
+                  <Cpu className="w-12 h-12 text-emerald-500/20 mx-auto mb-4" />
+                  <p className="text-zinc-500 text-sm">Örn: "Arduino Uno, LDR ve Buzzer bağlantısı nasıl yapılır?"</p>
+                </div>
+              ) : (
+                <div className="glass-card rounded-[2.5rem] p-8 md:p-12">
+                  <div className="markdown-body">
+                    <Markdown>
+                      {messages.filter(m => m.role === 'assistant').pop()?.content || ""}
+                    </Markdown>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      }
+
+      if (mode === 'CODE_CONVERTER') {
+        return (
+          <div className="p-4 md:p-12 max-w-6xl mx-auto pb-64 space-y-8">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 bg-purple-500/10 rounded-2xl flex items-center justify-center">
+                <Code2 className="text-purple-400 w-6 h-6" />
+              </div>
+              <div>
+                <h2 className="text-3xl font-display font-bold">Kod Dönüştürücü</h2>
+                <p className="text-zinc-500 text-sm">Kodunu farklı dillere veya platformlara çevirelim.</p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 gap-6">
+              {messages.filter(m => m.role === 'assistant').length === 0 ? (
+                <div className="py-20 text-center glass-card rounded-[2.5rem] border-dashed border-white/5">
+                  <Code2 className="w-12 h-12 text-purple-500/20 mx-auto mb-4" />
+                  <p className="text-zinc-500 text-sm">Dönüştürmek istediğin kodu ve hedef dili yaz.</p>
+                </div>
+              ) : (
+                <div className="glass-card rounded-[2.5rem] p-8 md:p-12">
+                  <div className="markdown-body">
+                    <Markdown>
+                      {messages.filter(m => m.role === 'assistant').pop()?.content || ""}
+                    </Markdown>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      }
+
+      if (mode === 'AI_OPTIMIZER') {
+        return (
+          <div className="p-4 md:p-12 max-w-6xl mx-auto pb-64 space-y-8">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 bg-amber-500/10 rounded-2xl flex items-center justify-center">
+                <Zap className="text-amber-400 w-6 h-6" />
+              </div>
+              <div>
+                <h2 className="text-3xl font-display font-bold">AI Kod Optimizasyonu</h2>
+                <p className="text-zinc-500 text-sm">Kodunu daha hızlı ve temiz hale getirelim.</p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 gap-6">
+              {messages.filter(m => m.role === 'assistant').length === 0 ? (
+                <div className="py-20 text-center glass-card rounded-[2.5rem] border-dashed border-white/5">
+                  <Zap className="w-12 h-12 text-amber-500/20 mx-auto mb-4" />
+                  <p className="text-zinc-500 text-sm">Optimize etmek istediğin kodu buraya yapıştır.</p>
+                </div>
+              ) : (
+                <div className="glass-card rounded-[2.5rem] p-8 md:p-12">
+                  <div className="markdown-body">
+                    <Markdown>
+                      {messages.filter(m => m.role === 'assistant').pop()?.content || ""}
+                    </Markdown>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      }
+
+      if (mode === 'ROADMAP_GEN') {
+        return (
+          <div className="p-4 md:p-12 max-w-6xl mx-auto pb-64 space-y-8">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 bg-indigo-500/10 rounded-2xl flex items-center justify-center">
+                <ChevronRight className="text-indigo-400 w-6 h-6" />
+              </div>
+              <div>
+                <h2 className="text-3xl font-display font-bold">Proje Yol Haritası</h2>
+                <p className="text-zinc-500 text-sm">Projeni 4 haftalık bir başarı planına dönüştürelim.</p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 gap-6">
+              {messages.filter(m => m.role === 'assistant').length === 0 ? (
+                <div className="py-20 text-center glass-card rounded-[2.5rem] border-dashed border-white/5">
+                  <ChevronRight className="w-12 h-12 text-indigo-500/20 mx-auto mb-4" />
+                  <p className="text-zinc-500 text-sm">Hangi projeyi planlamak istiyorsun? Örn: "Akıllı Ev Sistemi"</p>
+                </div>
+              ) : (
+                <div className="glass-card rounded-[2.5rem] p-8 md:p-12">
+                  <div className="markdown-body">
+                    <Markdown>
+                      {messages.filter(m => m.role === 'assistant').pop()?.content || ""}
+                    </Markdown>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      }
+
+      if (mode === 'EXPERT_MENTOR') {
+        return (
+          <div className="p-4 md:p-12 max-w-6xl mx-auto pb-64 space-y-8">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 bg-red-500/10 rounded-2xl flex items-center justify-center">
+                <ShieldCheck className="text-red-400 w-6 h-6" />
+              </div>
+              <div>
+                <h2 className="text-3xl font-display font-bold">Uzman Mentor</h2>
+                <p className="text-zinc-500 text-sm">Yarışmalar ve teknik raporlar için profesyonel rehberlik.</p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 gap-6">
+              {messages.filter(m => m.role === 'assistant').length === 0 ? (
+                <div className="py-20 text-center glass-card rounded-[2.5rem] border-dashed border-white/5">
+                  <ShieldCheck className="w-12 h-12 text-red-500/20 mx-auto mb-4" />
+                  <p className="text-zinc-500 text-sm">Mentoruna sormak istediğin teknik veya stratejik soruyu yaz.</p>
                 </div>
               ) : (
                 <div className="glass-card rounded-[2.5rem] p-8 md:p-12">
@@ -3290,7 +3627,7 @@ export default function App() {
               <div className="hidden sm:flex flex-col items-end">
                 <div className="flex items-center gap-2">
                   <span className="text-sm font-bold text-white tracking-tight">{profile.name}</span>
-                  {profile.subscriptionTier === 'PRO' && (
+                  {isUserPro(profile) && (
                     <span className="bg-gradient-to-r from-amber-400 to-orange-500 text-black text-[8px] font-black px-2 py-0.5 rounded-full uppercase tracking-tighter shadow-lg shadow-amber-500/20">Pro</span>
                   )}
                 </div>
@@ -3509,7 +3846,7 @@ export default function App() {
             className="fixed inset-0 z-[200] bg-zinc-950"
           >
             <LiveVoiceView 
-              isPremium={profile?.isPremium || profile?.subscriptionTier === 'PRO'} 
+              isPremium={profile?.isPremium || isUserPro(profile)} 
               onClose={() => setMode('PROJECT_GEN')} 
             />
           </motion.div>
@@ -3791,27 +4128,45 @@ export default function App() {
                   </button>
                 </div>
 
-                <form className="space-y-6" onSubmit={(e) => {
+                <form className="space-y-6" onSubmit={async (e) => {
                   e.preventDefault();
                   const formData = new FormData(e.currentTarget);
                   const newProject = {
-                    id: Math.random().toString(36).substr(2, 9),
                     title: formData.get('title') as string,
                     author: profile?.name || 'Anonim',
                     description: formData.get('description') as string,
                     likes: 0,
                     category: formData.get('category') as string,
-                    image: (formData.get('image_url') as string) || `https://picsum.photos/seed/${Math.random()}/800/600`
+                    image: (formData.get('image_url') as string) || `https://picsum.photos/seed/${Math.random()}/800/600`,
+                    timestamp: Date.now()
                   };
-                  setShowcaseProjects([newProject, ...showcaseProjects]);
+
+                  if (db) {
+                    try {
+                      const { collection, addDoc } = await import('firebase/firestore');
+                      const docRef = await addDoc(collection(db, 'showcase'), newProject);
+                      setShowcaseProjects([{ id: docRef.id, ...newProject }, ...showcaseProjects]);
+                    } catch (e) {
+                      console.error("Error sharing project:", e);
+                    }
+                  } else {
+                    setShowcaseProjects([{ id: Math.random().toString(), ...newProject }, ...showcaseProjects]);
+                  }
+
                   if (profile) {
-                    setProfile({
+                    const updatedProfile = {
                       ...profile,
                       stats: {
                         ...profile.stats,
                         projectsShared: (profile.stats?.projectsShared || 0) + 1
                       }
-                    } as UserProfile);
+                    } as UserProfile;
+                    setProfile(updatedProfile);
+                    localStorage.setItem('tekno_nova_profile', JSON.stringify(updatedProfile));
+                    if (firebaseUser && db) {
+                      const { doc, setDoc } = await import('firebase/firestore');
+                      setDoc(doc(db, 'users', firebaseUser.uid), updatedProfile, { merge: true });
+                    }
                   }
                   setShowShowcaseModal(false);
                   addNotification("Projeniz başarıyla paylaşıldı! 🚀", "success");
@@ -3868,6 +4223,52 @@ export default function App() {
                     Hemen Paylaş
                   </button>
                 </form>
+              </div>
+            </motion.div>
+          </div>
+        )}
+
+        {showInstructorModal && (
+          <div className="fixed inset-0 z-[600] flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              onClick={() => setShowInstructorModal(false)}
+              className="absolute inset-0 bg-black/80 backdrop-blur-sm"
+            />
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              className="relative w-full max-w-md glass-card rounded-[2.5rem] p-8 md:p-12 space-y-8"
+            >
+              <div className="w-20 h-20 bg-purple-500/10 rounded-3xl flex items-center justify-center mx-auto shadow-inner">
+                <GraduationCap className="w-10 h-10 text-purple-500" />
+              </div>
+              <div className="text-center space-y-4">
+                <h3 className="text-3xl font-display font-bold text-white">Eğitmen Doğrulaması</h3>
+                <p className="text-zinc-400 leading-relaxed">
+                  Eğitmen lisansı almak için kurucumuz <span className="text-white font-bold">Kamuran Yeşildağ</span> ile iletişime geçmeniz gerekmektedir. 
+                  <br/><br/>
+                  "Tamam" butonuna bastığınızda e-posta uygulamanız otomatik olarak açılacaktır.
+                </p>
+              </div>
+              <div className="flex flex-col gap-3">
+                <button 
+                  onClick={() => {
+                    window.location.href = `mailto:imranyesildag123@gmail.com?subject=DeneyapAI Eğitmen Lisansı Talebi&body=Merhaba Kamuran Bey,%0D%0A%0D%0ADeneyapAI platformu için eğitmen lisansı almak istiyorum.%0D%0A%0D%0AAd Soyad: ${profile?.name}%0D%0AE-posta: ${profile?.email}%0D%0AGörev Yeri: `;
+                    setShowInstructorModal(false);
+                    addNotification("E-posta uygulaması açılıyor...", "info");
+                  }}
+                  className="w-full py-4 bg-purple-500 hover:bg-purple-400 text-white font-black rounded-2xl uppercase tracking-widest text-xs shadow-xl shadow-purple-500/20 transition-all"
+                >
+                  Tamam, E-posta Gönder
+                </button>
+                <button 
+                  onClick={() => setShowInstructorModal(false)}
+                  className="w-full py-4 bg-white/5 hover:bg-white/10 text-zinc-500 hover:text-white font-black rounded-2xl uppercase tracking-widest text-xs transition-all"
+                >
+                  Vazgeç
+                </button>
               </div>
             </motion.div>
           </div>

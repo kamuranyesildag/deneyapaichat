@@ -13,6 +13,7 @@ export interface UserProfile {
   level: 'Başlangıç' | 'Orta' | 'İleri';
   totalQuestions: number;
   subscriptionTier: SubscriptionTier;
+  role?: 'STUDENT' | 'INSTRUCTOR' | 'REPRESENTATIVE';
   isPremium?: boolean; // Keep for backward compatibility or remove if not needed
   lastLogin?: number;
   deviceId?: string;
