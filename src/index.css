@@ -9,6 +9,9 @@
 }
 
 @layer base {
+  html {
+    @apply text-[15px] sm:text-[18px];
+  }
   body {
     @apply bg-[#030303] text-zinc-100 font-sans antialiased overflow-x-hidden;
     background-image: 
@@ -58,9 +61,9 @@
 .markdown-body h1 { @apply text-3xl font-display font-bold mb-6 text-white tracking-tight break-words; }
 .markdown-body h2 { @apply text-2xl font-display font-semibold mb-4 text-zinc-100 tracking-tight break-words; }
 .markdown-body h3 { @apply text-xl font-display font-medium mb-3 text-zinc-200 tracking-tight break-words; }
-.markdown-body p { @apply mb-6 leading-relaxed text-zinc-400 text-lg break-words; }
-.markdown-body ul { @apply list-disc pl-6 mb-6 space-y-3 text-zinc-400 text-lg; }
-.markdown-body ol { @apply list-decimal pl-6 mb-6 space-y-3 text-zinc-400 text-lg; }
+.markdown-body p { @apply mb-6 leading-relaxed text-zinc-400 text-base sm:text-lg break-words; }
+.markdown-body ul { @apply list-disc pl-6 mb-6 space-y-3 text-zinc-400 text-base sm:text-lg; }
+.markdown-body ol { @apply list-decimal pl-6 mb-6 space-y-3 text-zinc-400 text-base sm:text-lg; }
 .markdown-body code { @apply font-mono bg-zinc-800/80 px-2 py-0.5 rounded-lg text-[14px] text-purple-300 border border-white/10; }
 .markdown-body pre { @apply bg-black/60 border border-white/10 rounded-[1.5rem] p-6 mb-6 overflow-x-auto max-w-full shadow-2xl backdrop-blur-xl; }
 .markdown-body pre code { @apply bg-transparent p-0 text-zinc-200 border-none break-normal whitespace-pre text-[14px] leading-relaxed; }

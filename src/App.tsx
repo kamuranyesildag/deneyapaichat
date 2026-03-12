@@ -1471,7 +1471,7 @@ export default function App() {
                 <Zap className="w-3 h-3" />
                 Premium Deneyim
               </motion.div>
-              <h2 className="text-4xl md:text-5xl font-display font-bold bg-gradient-to-r from-amber-400 to-orange-500 bg-clip-text text-transparent">Üyelik Planları</h2>
+              <h2 className="text-3xl md:text-5xl font-display font-bold bg-gradient-to-r from-amber-400 to-orange-500 bg-clip-text text-transparent">Üyelik Planları</h2>
               <p className="text-zinc-400 max-w-2xl mx-auto text-sm md:text-base">Sana en uygun planı seç, teknolojide öne geç! Tüm ödemeler Shopier güvencesiyle yapılır ve lisans kodunuz anında e-postanıza iletilir.</p>
             </div>
 
@@ -1721,7 +1721,7 @@ export default function App() {
                   <Star className="w-3 h-3" />
                   Topluluk Vitrini
                 </div>
-                <h2 className="text-4xl md:text-5xl font-display font-bold text-white tracking-tight">İlham Veren Projeler</h2>
+                <h2 className="text-3xl md:text-5xl font-display font-bold text-white tracking-tight">İlham Veren Projeler</h2>
                 <p className="text-zinc-500 max-w-xl">Diğer teknoloji fatihlerinin neler inşa ettiğini gör ve kendi projeni paylaş.</p>
               </div>
               <button 
@@ -1985,15 +1985,15 @@ export default function App() {
                 <motion.h2 
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
-                  className="text-4xl md:text-6xl font-display font-bold text-white tracking-tight"
+                  className="text-3xl md:text-6xl font-display font-bold text-white tracking-tight"
                 >
-                  Selam, <span className="text-emerald-400">{profile?.name}</span>
+                  Hoşgeldin, <span className="text-emerald-400">{profile?.name}</span>
                 </motion.h2>
                 <motion.p 
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: 0.1 }}
-                  className="text-zinc-500 text-lg md:text-xl max-w-2xl"
+                  className="text-zinc-500 text-base md:text-xl max-w-2xl"
                 >
                   Teknoloji yolculuğunda bugün ne inşa etmek istersin? Senin için en gelişmiş araçları hazırladım.
                 </motion.p>
@@ -3198,6 +3198,37 @@ export default function App() {
 
       {/* Main Content */}
       <main className="flex-1 flex flex-col relative pb-64 lg:pb-0 min-w-0 md:ml-32 lg:ml-96">
+        {/* Welcome Rail */}
+        {profile && (
+          <motion.div 
+            initial={{ opacity: 0, x: -20 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ delay: 1, duration: 1 }}
+            className="fixed left-24 lg:left-[22rem] top-1/2 -translate-y-1/2 z-40 hidden md:flex flex-col items-center gap-8 pointer-events-none"
+          >
+            <motion.div 
+              animate={{ height: [0, 100, 100], opacity: [0, 1, 0.5] }}
+              transition={{ duration: 2, repeat: Infinity, repeatDelay: 3 }}
+              className="w-px bg-gradient-to-b from-transparent via-emerald-500 to-transparent" 
+            />
+            <div className="[writing-mode:vertical-rl] rotate-180 text-[11px] font-black uppercase tracking-[0.6em] text-zinc-700 whitespace-nowrap flex items-center gap-4 group">
+              <span className="opacity-40 group-hover:opacity-100 transition-opacity duration-500">Hoşgeldin</span>
+              <motion.span 
+                animate={{ opacity: [0.4, 1, 0.4] }}
+                transition={{ duration: 3, repeat: Infinity }}
+                className="text-emerald-500/60 drop-shadow-[0_0_15px_rgba(16,185,129,0.4)]"
+              >
+                {profile.name}
+              </motion.span>
+            </div>
+            <motion.div 
+              animate={{ height: [0, 100, 100], opacity: [0, 1, 0.5] }}
+              transition={{ duration: 2, repeat: Infinity, repeatDelay: 3, delay: 1 }}
+              className="w-px bg-gradient-to-b from-transparent via-emerald-500 to-transparent" 
+            />
+          </motion.div>
+        )}
+
         {/* Header */}
         <header className="h-24 px-8 border-b border-white/5 flex items-center justify-between bg-black/20 backdrop-blur-xl sticky top-0 z-30">
           <div className="flex items-center gap-6 lg:hidden">
