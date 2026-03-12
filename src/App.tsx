@@ -1017,6 +1017,14 @@ export default function App() {
     setIsLoading(true);
     setCooldown(COOLDOWN_TIME);
 
+    // Add status message
+    const statusMessage: Message = {
+      role: 'assistant',
+      content: mode === 'IMAGE_GEN' ? 'Resim oluşturuluyor...' : 'Mesajınız Analiz Ediliyor...',
+      timestamp: Date.now(),
+    };
+    setMessages(prev => [...prev, statusMessage]);
+
     // Update usage count
     const today = new Date().toISOString().split('T')[0];
     const newUsageCount = usageCount + 1;
@@ -1092,7 +1100,9 @@ export default function App() {
         content: responseText,
         timestamp: Date.now(),
       };
-      setMessages(prev => [...prev, assistantMessage]);
+      
+      // Replace the status message with the actual response
+      setMessages(prev => [...prev.slice(0, -1), assistantMessage]);
 
       // Save to history
       const newHistoryItem: HistoryItem = {
@@ -1127,7 +1137,7 @@ export default function App() {
         errorMessage = 'İnternet bağlantısı sorunu oluştu. Lütfen bağlantınızı kontrol edip tekrar deneyin.';
       }
 
-      setMessages(prev => [...prev, {
+      setMessages(prev => [...prev.slice(0, -1), {
         role: 'assistant',
         content: errorMessage,
         timestamp: Date.now(),
@@ -2664,8 +2674,8 @@ export default function App() {
           transition={{ duration: 0.4 }}
           className="relative"
         >
-          <div className="w-24 h-24 bg-emerald-500 rounded-[2rem] flex items-center justify-center shadow-2xl shadow-emerald-500/20 rotate-12 mb-8">
-            <Star className="text-white w-12 h-12" />
+          <div className="w-24 h-24 bg-white rounded-[2rem] flex items-center justify-center shadow-2xl shadow-emerald-500/20 rotate-12 mb-8 overflow-hidden">
+            <img src="https://r.resimlink.com/UsHJvfCn.png" alt="DeneyapAI Logo" className="w-full h-full object-cover" />
           </div>
           <motion.div
             animate={{ rotate: 360 }}
@@ -3023,8 +3033,8 @@ export default function App() {
             >
               <div className="p-6 border-b border-zinc-800 flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 bg-emerald-500 rounded-lg flex items-center justify-center shadow-lg shadow-emerald-500/20">
-                    <Star className="text-white w-5 h-5" />
+                  <div className="w-8 h-8 bg-white rounded-lg flex items-center justify-center shadow-lg shadow-emerald-500/20 overflow-hidden">
+                    <img src="https://r.resimlink.com/UsHJvfCn.png" alt="DeneyapAI Logo" className="w-full h-full object-cover" />
                   </div>
                   <span className="font-display font-bold text-lg">DeneyapAI</span>
                 </div>
