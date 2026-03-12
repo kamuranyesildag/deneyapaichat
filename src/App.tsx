@@ -283,6 +283,8 @@ export default function App() {
   const [showFeedbackModal, setShowFeedbackModal] = useState(false);
   const [feedbackText, setFeedbackText] = useState('');
   const [isSubmittingFeedback, setIsSubmittingFeedback] = useState(false);
+  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+  const [showInstallNotification, setShowInstallNotification] = useState(false);
 
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -308,6 +310,38 @@ export default function App() {
       return () => clearTimeout(timer);
     }
   }, []);
+
+  useEffect(() => {
+    const handleBeforeInstallPrompt = (e: any) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+      // Show the notification after a short delay if not already installed
+      const isInstalled = window.matchMedia('(display-mode: standalone)').matches;
+      if (!isInstalled) {
+        setTimeout(() => setShowInstallNotification(true), 5000);
+      }
+    };
+
+    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+
+    return () => {
+      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    };
+  }, []);
+
+  const handleInstallClick = async () => {
+    if (!deferredPrompt) return;
+    
+    deferredPrompt.prompt();
+    const { outcome } = await deferredPrompt.userChoice;
+    
+    if (outcome === 'accepted') {
+      addNotification("DeneyapAI başarıyla yükleniyor! 🚀", "success");
+    }
+    
+    setDeferredPrompt(null);
+    setShowInstallNotification(false);
+  };
 
   const closeNewFeaturesPopup = () => {
     localStorage.setItem('deneyap_ai_last_seen_version', '2.5.0');
@@ -4719,6 +4753,38 @@ export default function App() {
         {/* Notification Toast */}
         <div className="fixed bottom-24 left-1/2 -translate-x-1/2 z-[300] flex flex-col gap-2 w-full max-w-md px-4 pointer-events-none">
           <AnimatePresence>
+            {showInstallNotification && (
+              <motion.div
+                initial={{ opacity: 0, y: 50, scale: 0.9 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.9, y: 20 }}
+                className="bg-zinc-900 border border-emerald-500/30 p-4 rounded-2xl shadow-2xl flex items-center justify-between gap-4 pointer-events-auto"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-emerald-500/20 rounded-xl flex items-center justify-center shrink-0">
+                    <Star className="w-5 h-5 text-emerald-400" />
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-bold text-white">Ana Ekrana Ekle</h4>
+                    <p className="text-[10px] text-zinc-400">DeneyapAI'yı uygulama olarak kullanın.</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button 
+                    onClick={() => setShowInstallNotification(false)}
+                    className="px-3 py-2 text-[10px] font-black uppercase tracking-widest text-zinc-500 hover:text-white transition-colors"
+                  >
+                    Kapat
+                  </button>
+                  <button 
+                    onClick={handleInstallClick}
+                    className="px-4 py-2 bg-emerald-500 text-black text-[10px] font-black uppercase tracking-widest rounded-xl shadow-lg shadow-emerald-500/20 hover:scale-105 transition-all"
+                  >
+                    Yükle
+                  </button>
+                </div>
+              </motion.div>
+            )}
             {notifications.map((n) => (
               <motion.div
                 key={n.id}
