@@ -7,9 +7,12 @@ import {
   User as FirebaseUser,
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
-  sendPasswordResetEmail
+  sendPasswordResetEmail,
+  updatePassword,
+  reauthenticateWithCredential,
+  EmailAuthProvider
 } from 'firebase/auth';
-import { doc, setDoc, getDoc } from 'firebase/firestore';
+import { doc, setDoc, getDoc, collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { 
   Cpu, 
   Bug, 
@@ -36,6 +39,7 @@ import {
   Key,
   ArrowLeft,
   AlertCircle,
+  AlertTriangle,
   Menu,
   LogIn,
   Mic,
@@ -60,7 +64,11 @@ import {
   FileText,
   Bell,
   Trophy,
-  GraduationCap
+  GraduationCap,
+  Monitor,
+  MapPin,
+  Smartphone,
+  Globe
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import Markdown from 'react-markdown';
@@ -105,6 +113,18 @@ interface ChangelogItem {
 }
 
 const CHANGELOG: ChangelogItem[] = [
+  {
+    version: '4.2.0',
+    date: '14 Mart 2026',
+    title: 'Güvenlik ve Hesap Yönetimi Güncellemesi',
+    type: 'minor',
+    changes: [
+      'Güvenlik Paneli: Giriş yapılan cihazlar ve detaylı konum bilgileri eklendi.',
+      'Yeni Giriş Uyarısı: Hesabınıza farklı bir cihazdan giriş yapıldığında anlık bildirim.',
+      'Şifre Değiştirme: Profil ayarlarından güvenli şifre güncelleme özelliği.',
+      'Oturum Yönetimi: Aktif oturumları görüntüleme ve takip etme imkanı.'
+    ]
+  },
   {
     version: '4.1.0',
     date: '7 Mart 2026',
@@ -229,8 +249,87 @@ const DAILY_TIPS = [
   "DeneyapAI ile kodundaki hataları saniyeler içinde bulabilirsin!"
 ];
 
+const getDeviceInfo = async () => {
+  const userAgent = navigator.userAgent;
+  let deviceName = 'Bilinmeyen Cihaz';
+  
+  if (/android/i.test(userAgent)) deviceName = 'Android Cihaz';
+  else if (/iPhone|iPad|iPod/i.test(userAgent)) deviceName = 'iOS Cihaz';
+  else if (/Windows/i.test(userAgent)) deviceName = 'Windows PC';
+  else if (/Macintosh/i.test(userAgent)) deviceName = 'MacBook';
+  else if (/Linux/i.test(userAgent)) deviceName = 'Linux PC';
+
+  let location = 'Bilinmeyen Konum';
+  let ip = '0.0.0.0';
+
+  try {
+    const res = await fetch('https://ipapi.co/json/');
+    const data = await res.json();
+    if (data.city) {
+      location = `${data.city}, ${data.region}, ${data.country_name}`;
+      ip = data.ip;
+    }
+  } catch (e) {
+    console.error("Location fetch error:", e);
+  }
+
+  return { deviceName, location, ip };
+};
+
 const cn = (...inputs: ClassValue[]) => {
   return twMerge(clsx(inputs));
+};
+
+const TypingIndicator = () => (
+  <div className="flex items-center gap-1.5 px-2 py-1">
+    <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-typing-dot" style={{ animationDelay: '0ms' }} />
+    <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-typing-dot" style={{ animationDelay: '200ms' }} />
+    <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-typing-dot" style={{ animationDelay: '400ms' }} />
+  </div>
+);
+
+const Typewriter = ({ text, speed = 15, onComplete }: { text: string, speed?: number, onComplete?: () => void }) => {
+  const [displayedText, setDisplayedText] = useState('');
+  const [isComplete, setIsComplete] = useState(false);
+  const onCompleteRef = useRef(onComplete);
+  
+  // Update ref whenever onComplete changes without triggering effect
+  useEffect(() => {
+    onCompleteRef.current = onComplete;
+  }, [onComplete]);
+  
+  useEffect(() => {
+    // Reset state when text changes
+    setDisplayedText('');
+    setIsComplete(false);
+    
+    let i = 0;
+    const timer = setInterval(() => {
+      i++;
+      setDisplayedText(text.slice(0, i));
+      
+      if (i >= text.length) {
+        clearInterval(timer);
+        setIsComplete(true);
+        onCompleteRef.current?.();
+      }
+    }, speed);
+    
+    return () => clearInterval(timer);
+  }, [text, speed]); // onComplete is intentionally excluded from dependencies
+
+  return (
+    <div className="relative">
+      <Markdown>{displayedText}</Markdown>
+      {!isComplete && (
+        <motion.span
+          animate={{ opacity: [0, 1, 0] }}
+          transition={{ duration: 0.8, repeat: Infinity }}
+          className="inline-block w-1.5 h-5 bg-emerald-500 ml-1 align-middle"
+        />
+      )}
+    </div>
+  );
 };
 
 export default function App() {
@@ -252,6 +351,7 @@ export default function App() {
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [history, setHistory] = useState<HistoryItem[]>([]);
   const [showOnboarding, setShowOnboarding] = useState(false);
+  const [isBanned, setIsBanned] = useState(false);
   const [showPremiumModal, setShowPremiumModal] = useState(false);
   const [showChangelog, setShowChangelog] = useState(false);
   const [showMobileMenu, setShowMobileMenu] = useState(false);
@@ -283,6 +383,11 @@ export default function App() {
   const [showFeedbackModal, setShowFeedbackModal] = useState(false);
   const [feedbackText, setFeedbackText] = useState('');
   const [isSubmittingFeedback, setIsSubmittingFeedback] = useState(false);
+  const [showNewLoginPopup, setShowNewLoginPopup] = useState(false);
+  const [lastSession, setLastSession] = useState<any>(null);
+  const [showPasswordChangeModal, setShowPasswordChangeModal] = useState(false);
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
   const [showInstallNotification, setShowInstallNotification] = useState(false);
 
@@ -301,7 +406,7 @@ export default function App() {
 
   useEffect(() => {
     const lastSeenVersion = localStorage.getItem('deneyap_ai_last_seen_version');
-    const currentVersion = '2.5.0';
+    const currentVersion = '4.2.0';
     
     if (lastSeenVersion !== currentVersion) {
       const timer = setTimeout(() => {
@@ -344,7 +449,7 @@ export default function App() {
   };
 
   const closeNewFeaturesPopup = () => {
-    localStorage.setItem('deneyap_ai_last_seen_version', '2.5.0');
+    localStorage.setItem('deneyap_ai_last_seen_version', '4.2.0');
     setShowNewFeaturesPopup(false);
   };
 
@@ -399,7 +504,7 @@ export default function App() {
     };
     
     setProfile(updated);
-    localStorage.setItem('tekno_nova_profile', JSON.stringify(updated));
+    localStorage.setItem('deneyapai_profile', JSON.stringify(updated));
     
     if (firebaseUser && db) {
       const { doc, setDoc } = await import('firebase/firestore');
@@ -422,10 +527,9 @@ export default function App() {
         isPremium: true
       };
       setProfile(updated);
-      localStorage.setItem('tekno_nova_profile', JSON.stringify(updated));
+      localStorage.setItem('deneyapai_profile', JSON.stringify(updated));
       
       if (firebaseUser && db) {
-        const { doc, setDoc } = await import('firebase/firestore');
         await setDoc(doc(db, 'users', firebaseUser.uid), updated, { merge: true });
       }
       
@@ -433,6 +537,38 @@ export default function App() {
       setLicenseInput('');
     } else {
       addNotification("Geçersiz lisans kodu. Lütfen kontrol edin.", "error");
+    }
+  };
+
+  const handleChangePassword = async () => {
+    if (!firebaseUser || !currentPassword || !newPassword) {
+      addNotification("Lütfen tüm alanları doldurun.", "error");
+      return;
+    }
+
+    if (newPassword.length < 6) {
+      addNotification("Yeni şifre en az 6 karakter olmalıdır.", "error");
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      const credential = EmailAuthProvider.credential(firebaseUser.email!, currentPassword);
+      await reauthenticateWithCredential(firebaseUser, credential);
+      await updatePassword(firebaseUser, newPassword);
+      
+      addNotification("Şifreniz başarıyla güncellendi! 🔐", "success");
+      setShowPasswordChangeModal(false);
+      setCurrentPassword('');
+      setNewPassword('');
+    } catch (error: any) {
+      console.error("Password change error:", error);
+      let msg = "Şifre değiştirilemedi.";
+      if (error.code === 'auth/wrong-password') msg = "Mevcut şifreniz hatalı.";
+      else if (error.code === 'auth/too-many-requests') msg = "Çok fazla deneme yapıldı. Lütfen sonra tekrar deneyin.";
+      addNotification(msg, "error");
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -489,7 +625,7 @@ export default function App() {
         twoFASecret 
       };
       setProfile(updatedProfile);
-      localStorage.setItem('tekno_nova_profile', JSON.stringify(updatedProfile));
+      localStorage.setItem('deneyapai_profile', JSON.stringify(updatedProfile));
       
       if (firebaseUser && db) {
         try {
@@ -558,6 +694,15 @@ export default function App() {
   const [licenseError, setLicenseError] = useState('');
   const [isPaymentLoading, setIsPaymentLoading] = useState(false);
   const [firebaseUser, setFirebaseUser] = useState<FirebaseUser | null>(null);
+
+  // Sync current chat to Firestore
+  useEffect(() => {
+    if (firebaseUser && db && messages.length > 0) {
+      const chatRef = doc(db, 'current_chat', firebaseUser.uid);
+      setDoc(chatRef, { messages }, { merge: true })
+        .catch(e => console.error("Error syncing current chat:", e));
+    }
+  }, [messages, firebaseUser]);
   const [isListening, setIsListening] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [isLiveActive, setIsLiveActive] = useState(false);
@@ -568,6 +713,13 @@ export default function App() {
   const [authView, setAuthView] = useState<'onboarding' | 'email'>('onboarding');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [registerName, setRegisterName] = useState('');
+  const registerNameRef = useRef('');
+  
+  useEffect(() => {
+    registerNameRef.current = registerName;
+  }, [registerName]);
+
   const [isRegistering, setIsRegistering] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [authError, setAuthError] = useState('');
@@ -576,6 +728,12 @@ export default function App() {
   const [tempFirebaseUser, setTempFirebaseUser] = useState<FirebaseUser | null>(null);
   const [resetSent, setResetSent] = useState(false);
   const [isLoggingIn, setIsLoggingIn] = useState(false);
+  const isLoggingInRef = useRef(false);
+  
+  const setLoggingIn = (val: boolean) => {
+    setIsLoggingIn(val);
+    isLoggingInRef.current = val;
+  };
 
   // Check for Firebase Config Errors on mount
   useEffect(() => {
@@ -596,23 +754,42 @@ export default function App() {
       
       try {
         if (user) {
-          // Fetch profile and history from Firestore
+          // Fetch profile, history and current chat from Firestore in parallel
           let fetchedProfile: UserProfile | null = null;
           let fetchedHistory: HistoryItem[] = [];
+          let fetchedMessages: Message[] = [];
+          
           if (db) {
             try {
-              const userDoc = await getDoc(doc(db, 'users', user.uid));
+              const [userDoc, historyDoc, chatDoc] = await Promise.all([
+                getDoc(doc(db, 'users', user.uid)),
+                getDoc(doc(db, 'history', user.uid)),
+                getDoc(doc(db, 'current_chat', user.uid))
+              ]);
+
               if (userDoc.exists()) {
                 fetchedProfile = userDoc.data() as UserProfile;
               }
               
-              const historyDoc = await getDoc(doc(db, 'history', user.uid));
               if (historyDoc.exists()) {
                 fetchedHistory = (historyDoc.data() as { items: HistoryItem[] }).items || [];
+              }
+
+              if (chatDoc.exists()) {
+                fetchedMessages = (chatDoc.data() as { messages: Message[] }).messages || [];
               }
             } catch (e) {
               console.error("Error fetching data from Firestore:", e);
             }
+          }
+
+          // Check if user is banned
+          if (fetchedProfile?.isBanned) {
+            setFirebaseUser(user);
+            setIsBanned(true);
+            setProfile(fetchedProfile);
+            setIsAuthLoading(false);
+            return;
           }
 
           // If 2FA is enabled, we need to verify before setting firebaseUser
@@ -620,6 +797,9 @@ export default function App() {
             setTempFirebaseUser(user);
             setProfile(fetchedProfile);
             setHistory(fetchedHistory);
+            if (fetchedMessages.length > 0) {
+              setMessages(fetchedMessages);
+            }
             setShow2FAVerify(true);
             setIsAuthLoading(false);
             if (isLoggingIn) {
@@ -630,16 +810,21 @@ export default function App() {
 
           setFirebaseUser(user);
           setHistory(fetchedHistory);
-          if (isLoggingIn) {
-            addNotification("Giriş başarılı! Hoş geldin.", "success");
-            setIsLoggingIn(false);
+          if (fetchedMessages.length > 0) {
+            setMessages(fetchedMessages);
           }
+          setShowOnboarding(false);
+          setIsAuthLoading(false);
+          
+          const deviceInfo = await getDeviceInfo();
+          const currentSessionId = Math.random().toString(36).substring(7);
+
           setProfile(prev => {
             const profileToUse = fetchedProfile || prev;
             let finalProfile: UserProfile;
             if (!profileToUse) {
               finalProfile = {
-                name: user.displayName || 'Gezgin',
+                name: registerNameRef.current || user.displayName || 'Gezgin',
                 level: 'Başlangıç',
                 totalQuestions: 0,
                 subscriptionTier: 'FREE',
@@ -649,7 +834,13 @@ export default function App() {
                 securityVerified: true,
                 email: user.email || undefined,
                 stats: { projectsGenerated: 0, bugsFixed: 0, codeOptimized: 0 },
-                achievements: []
+                achievements: [],
+                sessions: [{
+                  id: currentSessionId,
+                  ...deviceInfo,
+                  lastActive: Date.now(),
+                  isCurrent: true
+                }]
               };
             } else {
               // Update existing profile with email if missing
@@ -657,9 +848,44 @@ export default function App() {
               if (!finalProfile.email && user.email) {
                 finalProfile.email = user.email;
               }
+              
+              // Check for new login (different device or long time)
+              const isNewDevice = !finalProfile.sessions?.some(s => s.ip === deviceInfo.ip && s.deviceName === deviceInfo.deviceName);
+              if (isNewDevice && finalProfile.sessions && finalProfile.sessions.length > 0) {
+                finalProfile.newLoginDetected = true;
+                setLastSession(finalProfile.sessions[finalProfile.sessions.length - 1]);
+              }
+
+              finalProfile.lastLogin = Date.now();
+              
+              // Update sessions
+              const otherSessions = (finalProfile.sessions || [])
+                .filter(s => s.id !== currentSessionId)
+                .map(s => ({ ...s, isCurrent: false }));
+              
+              finalProfile.sessions = [
+                {
+                  id: currentSessionId,
+                  ...deviceInfo,
+                  lastActive: Date.now(),
+                  isCurrent: true
+                },
+                ...otherSessions.slice(0, 4) // Keep last 5 sessions
+              ];
             }
             
             localStorage.setItem('deneyapai_profile', JSON.stringify(finalProfile));
+            
+            // Show welcome notification if logging in
+            if (isLoggingInRef.current) {
+              addNotification(`Hoş geldiniz, ${finalProfile.name}! ✨`, "success");
+              setLoggingIn(false);
+            }
+
+            // Show new login popup if detected
+            if (finalProfile.newLoginDetected) {
+              setShowNewLoginPopup(true);
+            }
             
             // Sync to Firestore if it's a new profile or updated
             if (db) {
@@ -669,21 +895,21 @@ export default function App() {
             
             return finalProfile;
           });
-          setShowOnboarding(false);
         } else {
           setFirebaseUser(null);
           setTempFirebaseUser(null);
           setShow2FAVerify(false);
+          setIsBanned(false);
           
           // If no user and no local profile, show onboarding
           const storedProfile = localStorage.getItem('deneyapai_profile');
           if (!storedProfile) {
             setShowOnboarding(true);
           }
+          setIsAuthLoading(false);
         }
       } catch (error) {
         console.error("Error in auth state listener:", error);
-      } finally {
         setIsAuthLoading(false);
       }
     });
@@ -696,7 +922,7 @@ export default function App() {
     
     setAuthError('');
     setIsLoading(true);
-    setIsLoggingIn(true);
+    setLoggingIn(true);
     try {
       if (isRegistering) {
         await createUserWithEmailAndPassword(auth, email, password);
@@ -754,7 +980,7 @@ export default function App() {
     }
     try {
       setIsLoading(true);
-      setIsLoggingIn(true);
+      setLoggingIn(true);
       setAuthError("");
       
       // Add a small delay to ensure UI updates
@@ -763,6 +989,12 @@ export default function App() {
       console.log("Calling signInWithPopup...");
       const result = await signInWithPopup(auth, googleProvider);
       console.log("Google Sign-In Success:", result.user.email);
+      
+      // Proactively hide onboarding if successful
+      if (result.user) {
+        setShowOnboarding(false);
+        setIsAuthLoading(false);
+      }
     } catch (error: any) {
       console.error("Google Sign-In Error Details:", error);
       let msg = "Giriş yapılırken bir hata oluştu.";
@@ -1022,6 +1254,7 @@ export default function App() {
       role: 'assistant',
       content: mode === 'IMAGE_GEN' ? 'Resim oluşturuluyor...' : 'Mesajınız Analiz Ediliyor...',
       timestamp: Date.now(),
+      isTyping: true,
     };
     setMessages(prev => [...prev, statusMessage]);
 
@@ -1081,7 +1314,7 @@ export default function App() {
       achievements: newAchievements
     };
     setProfile(newProfile);
-    localStorage.setItem('tekno_nova_profile', JSON.stringify(newProfile));
+    localStorage.setItem('deneyapai_profile', JSON.stringify(newProfile));
     
     if (firebaseUser && db) {
       setDoc(doc(db, 'users', firebaseUser.uid), newProfile, { merge: true })
@@ -1099,6 +1332,7 @@ export default function App() {
         role: 'assistant',
         content: responseText,
         timestamp: Date.now(),
+        isTyping: mode !== 'IMAGE_GEN', // Only type out text responses
       };
       
       // Replace the status message with the actual response
@@ -1204,7 +1438,7 @@ export default function App() {
           }
         };
         setProfile(updatedProfile);
-        localStorage.setItem('tekno_nova_profile', JSON.stringify(updatedProfile));
+        localStorage.setItem('deneyapai_profile', JSON.stringify(updatedProfile));
         
         if (firebaseUser && db) {
           setDoc(doc(db, 'users', firebaseUser.uid), updatedProfile, { merge: true })
@@ -1596,12 +1830,16 @@ export default function App() {
               </div>
 
               <div className="glass-card rounded-[2.5rem] p-8 space-y-6">
-                <h4 className="text-xs font-black uppercase tracking-widest text-zinc-500">Hesap Güvenliği</h4>
+                <div className="flex items-center justify-between">
+                  <h4 className="text-xs font-black uppercase tracking-widest text-zinc-500">Hesap Güvenliği</h4>
+                  <Shield className="w-4 h-4 text-blue-400" />
+                </div>
+                
                 <div className="space-y-4">
-                  <div className="flex items-center justify-between">
+                  <div className="flex items-center justify-between p-4 bg-white/5 rounded-2xl border border-white/10">
                     <div className="flex items-center gap-3">
                       <div className="w-10 h-10 bg-blue-500/10 rounded-xl flex items-center justify-center">
-                        <Shield className="w-5 h-5 text-blue-400" />
+                        <Lock className="w-5 h-5 text-blue-400" />
                       </div>
                       <div>
                         <div className="text-sm font-bold">2FA Koruması</div>
@@ -1617,6 +1855,62 @@ export default function App() {
                       >
                         Aktif Et
                       </button>
+                    )}
+                  </div>
+
+                  <button 
+                    onClick={() => setShowPasswordChangeModal(true)}
+                    className="w-full flex items-center justify-between p-4 bg-white/5 rounded-2xl border border-white/10 hover:bg-white/10 transition-all group"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 bg-purple-500/10 rounded-xl flex items-center justify-center">
+                        <Key className="w-5 h-5 text-purple-400" />
+                      </div>
+                      <div className="text-left">
+                        <div className="text-sm font-bold">Şifre Değiştir</div>
+                        <div className="text-[10px] text-zinc-500 uppercase font-black tracking-tighter">Güvenliğinizi Güncelleyin</div>
+                      </div>
+                    </div>
+                    <ChevronRight className="w-4 h-4 text-zinc-600 group-hover:text-white transition-colors" />
+                  </button>
+                </div>
+
+                <div className="space-y-4 pt-4 border-t border-white/5">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Monitor className="w-4 h-4 text-zinc-500" />
+                    <span className="text-[10px] font-black uppercase tracking-widest text-zinc-500">Son Oturumlar</span>
+                  </div>
+                  
+                  <div className="space-y-3">
+                    {profile?.sessions?.map((session, idx) => (
+                      <div key={session.id} className="p-4 bg-white/5 rounded-2xl border border-white/10 relative overflow-hidden">
+                        {session.isCurrent && (
+                          <div className="absolute top-0 right-0 px-3 py-1 bg-emerald-500 text-black text-[8px] font-black uppercase tracking-widest rounded-bl-xl">Aktif</div>
+                        )}
+                        <div className="flex items-start gap-3">
+                          <div className="mt-1">
+                            {session.deviceName.includes('PC') || session.deviceName.includes('Mac') ? (
+                              <Monitor className="w-4 h-4 text-zinc-400" />
+                            ) : (
+                              <Smartphone className="w-4 h-4 text-zinc-400" />
+                            )}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="text-xs font-bold text-white truncate">{session.deviceName}</div>
+                            <div className="flex items-center gap-1.5 mt-1">
+                              <MapPin className="w-3 h-3 text-zinc-600" />
+                              <span className="text-[10px] text-zinc-500 truncate">{session.location}</span>
+                            </div>
+                            <div className="flex items-center gap-1.5 mt-0.5">
+                              <Globe className="w-3 h-3 text-zinc-600" />
+                              <span className="text-[10px] text-zinc-600 font-mono">{session.ip}</span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                    {(!profile?.sessions || profile.sessions.length === 0) && (
+                      <div className="text-center py-4 text-zinc-600 text-[10px] font-medium italic">Oturum bilgisi bulunamadı.</div>
                     )}
                   </div>
                 </div>
@@ -1926,8 +2220,31 @@ export default function App() {
               </button>
               <h2 className="text-3xl font-display font-bold">Gizlilik Politikası</h2>
             </div>
-            <div className="prose prose-invert max-w-none text-zinc-400">
-              <p>Verileriniz yerel olarak saklanır ve sadece AI yanıtları için kullanılır.</p>
+            <div className="prose prose-invert max-w-none text-zinc-400 space-y-8">
+              <section className="space-y-4">
+                <h3 className="text-xl font-bold text-white">1. Veri Toplama ve Kullanım</h3>
+                <p>DeneyapAI, kullanıcı deneyimini iyileştirmek ve kişiselleştirilmiş mentorluk sunmak amacıyla kullanıcı adı, eğitim seviyesi, proje istatistikleri ve cihaz bilgilerini toplar. Bu veriler, Firebase altyapısı üzerinde yüksek güvenlik standartlarıyla saklanır.</p>
+              </section>
+
+              <section className="space-y-4 bg-emerald-500/5 border border-emerald-500/10 p-6 rounded-3xl">
+                <h3 className="text-xl font-bold text-emerald-400">2. Eğitmen ve İl Temsilcisi Güvenliği</h3>
+                <p>DeneyapAI, Deneyap Atölyeleri'nde görev yapan <strong>Eğitmenlerin</strong> ve <strong>İl Temsilcilerinin</strong> kişisel güvenliğini ve gizliliğini en üst düzeyde tutar. Bu kapsamda:</p>
+                <ul className="list-disc pl-6 space-y-2">
+                  <li>Eğitmenlerin ve İl Temsilcilerinin kişisel iletişim bilgileri (telefon, e-posta, sosyal medya) uygulama üzerinden asla paylaşılmaz.</li>
+                  <li>Kullanıcılar, yapay zeka ile etkileşimleri sırasında bu yetkililerin özel hayatına dair bilgi talep edemez veya paylaşamaz.</li>
+                  <li>Yetkililerin güvenliğini tehlikeye atacak her türlü veri sızıntısı girişimi yasal işlem sebebidir.</li>
+                </ul>
+              </section>
+
+              <section className="space-y-4">
+                <h3 className="text-xl font-bold text-white">3. Veri Paylaşımı</h3>
+                <p>Kullanıcı verileri hiçbir koşulda üçüncü şahıslara satılmaz veya ticari amaçla paylaşılmaz. Veriler sadece uygulamanın temel fonksiyonlarını yerine getirmek için kullanılır.</p>
+              </section>
+
+              <section className="space-y-4">
+                <h3 className="text-xl font-bold text-white">4. Kullanıcı Hakları</h3>
+                <p>Kullanıcılar, diledikleri zaman hesaplarını silme ve verilerinin temizlenmesini talep etme hakkına sahiptir. KVKK kapsamında tüm haklarınız DeneyapAI güvencesi altındadır.</p>
+              </section>
             </div>
           </div>
         );
@@ -1941,8 +2258,31 @@ export default function App() {
               </button>
               <h2 className="text-3xl font-display font-bold">Hizmet Şartları</h2>
             </div>
-            <div className="prose prose-invert max-w-none text-zinc-400">
-              <p>Uygulamayı yasalara uygun şekilde kullanmayı taahhüt edersiniz.</p>
+            <div className="prose prose-invert max-w-none text-zinc-400 space-y-8">
+              <section className="space-y-4">
+                <h3 className="text-xl font-bold text-white">1. Kullanım Amacı</h3>
+                <p>DeneyapAI, Deneyap Teknoloji Atölyeleri müfredatına destek olmak ve öğrencilerin teknik gelişimine katkı sağlamak amacıyla tasarlanmıştır. Uygulamanın bu amaç dışında kullanımı yasaktır.</p>
+              </section>
+
+              <section className="space-y-4 bg-red-500/5 border border-red-500/10 p-6 rounded-3xl">
+                <h3 className="text-xl font-bold text-red-400">2. Etik Kurallar ve Güvenlik</h3>
+                <p>Uygulama içerisinde aşağıdaki davranışlar kesinlikle yasaktır ve hesabın anında kapatılmasına yol açar:</p>
+                <ul className="list-disc pl-6 space-y-2">
+                  <li><strong>Eğitmenlere ve İl Temsilcilerine</strong> yönelik her türlü hakaret, siber zorbalık veya asılsız ithamda bulunmak.</li>
+                  <li>Atölye hiyerarşisini bozacak veya yetkililerin itibarını zedeleyecek içerikler üretmek.</li>
+                  <li>Diğer kullanıcıların veya yetkililerin hesaplarına yetkisiz erişim denemeleri.</li>
+                </ul>
+              </section>
+
+              <section className="space-y-4">
+                <h3 className="text-xl font-bold text-white">3. Sorumluluk Reddi</h3>
+                <p>DeneyapAI tarafından üretilen içerikler yapay zeka tabanlıdır. Teknik projelerde son karar ve güvenlik onayı her zaman ilgili <strong>Deneyap Eğitmeni</strong> tarafından verilmelidir. Uygulama kaynaklı teknik hatalardan DeneyapAI sorumlu tutulamaz.</p>
+              </section>
+
+              <section className="space-y-4">
+                <h3 className="text-xl font-bold text-white">4. Hesap İptali</h3>
+                <p>DeneyapAI yönetimi, topluluk kurallarını veya yetkililerin güvenliğini ihlal eden kullanıcıların erişimini önceden haber vermeksizin kısıtlama hakkını saklı tutar.</p>
+              </section>
             </div>
           </div>
         );
@@ -2618,11 +2958,19 @@ export default function App() {
                     )}>
                       {msg.role === 'assistant' && (
                         <div className="flex items-center gap-4 mb-6">
-                          <div className="w-10 h-10 bg-emerald-500 rounded-2xl flex items-center justify-center shadow-xl shadow-emerald-500/20">
-                            <Cpu className="w-5 h-5 text-white" />
+                          <div className={cn(
+                            "w-10 h-10 bg-emerald-500 rounded-2xl flex items-center justify-center shadow-xl transition-all duration-500",
+                            msg.isTyping ? "shadow-emerald-500/50 scale-110 animate-pulse" : "shadow-emerald-500/20"
+                          )}>
+                            <Cpu className={cn("w-5 h-5 text-white", msg.isTyping && "animate-spin-slow")} />
                           </div>
                           <div>
-                            <span className="text-[10px] font-black uppercase tracking-[0.2em] text-emerald-400 block">DeneyapAI Mentor</span>
+                            <span className={cn(
+                              "text-[10px] font-black uppercase tracking-[0.2em] block transition-all duration-500",
+                              msg.isTyping ? "text-emerald-300 animate-text-glow" : "text-emerald-400"
+                            )}>
+                              DeneyapAI Mentor
+                            </span>
                             <span className="text-[9px] text-zinc-500 font-bold uppercase tracking-widest">Sistem v5.0 • {new Date(msg.timestamp).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })}</span>
                           </div>
                         </div>
@@ -2636,7 +2984,23 @@ export default function App() {
                       )}
 
                       <div className="markdown-body text-base md:text-lg leading-relaxed">
-                        <Markdown>{msg.content}</Markdown>
+                        {msg.isTyping && msg.content.includes('Analiz') ? (
+                          <div className="flex flex-col gap-3">
+                            <span className="text-emerald-400/70 font-medium italic">{msg.content}</span>
+                            <TypingIndicator />
+                          </div>
+                        ) : msg.isTyping && msg.role === 'assistant' && idx === messages.length - 1 ? (
+                          <Typewriter 
+                            text={msg.content} 
+                            onComplete={() => {
+                              const newMessages = [...messages];
+                              newMessages[idx].isTyping = false;
+                              setMessages(newMessages);
+                            }} 
+                          />
+                        ) : (
+                          <Markdown>{msg.content}</Markdown>
+                        )}
                       </div>
 
                       {msg.role === 'assistant' && (
@@ -2694,6 +3058,46 @@ export default function App() {
               className="w-1.5 h-1.5 bg-emerald-500 rounded-full"
             />
           ))}
+        </div>
+      </div>
+    );
+  }
+
+  if (isBanned) {
+    return (
+      <div className="fixed inset-0 bg-zinc-950 flex flex-col items-center justify-center z-[200] p-6 text-center">
+        <motion.div
+          initial={{ opacity: 0, scale: 0.8 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="w-24 h-24 bg-red-500/10 rounded-[2rem] flex items-center justify-center mb-8"
+        >
+          <AlertTriangle className="w-12 h-12 text-red-500" />
+        </motion.div>
+        <h2 className="text-3xl font-display font-bold text-white mb-4">Hesabınız Yasaklandı</h2>
+        <p className="text-zinc-400 max-w-md mb-8 leading-relaxed">
+          Topluluk kurallarımızı ihlal ettiğiniz tespit edildiği için hesabınız kalıcı olarak askıya alınmıştır.
+        </p>
+        
+        {profile?.banReason && (
+          <div className="bg-red-500/5 border border-red-500/10 rounded-2xl p-6 mb-8 w-full max-w-md text-left">
+            <span className="text-[10px] font-black uppercase tracking-widest text-red-400 block mb-2">Yasaklanma Sebebi</span>
+            <p className="text-zinc-300 text-sm">{profile.banReason}</p>
+          </div>
+        )}
+
+        <div className="flex flex-col gap-3 w-full max-w-md">
+          <button 
+            onClick={() => window.location.href = `mailto:imranyesildag123@gmail.com?subject=Hesap Yasaklanma İtirazı (${firebaseUser?.uid})`}
+            className="w-full bg-white text-black font-black py-4 rounded-2xl uppercase tracking-widest text-xs hover:bg-zinc-200 transition-all"
+          >
+            İtiraz Et / İletişime Geç
+          </button>
+          <button 
+            onClick={() => auth?.signOut()}
+            className="w-full bg-zinc-900 text-zinc-400 font-black py-4 rounded-2xl uppercase tracking-widest text-xs border border-white/5 hover:bg-zinc-800 transition-all"
+          >
+            Çıkış Yap
+          </button>
         </div>
       </div>
     );
@@ -2952,6 +3356,23 @@ export default function App() {
                             />
                           </div>
                         </div>
+
+                        {isRegistering && (
+                          <div className="space-y-2">
+                            <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest ml-1">Ad Soyad</label>
+                            <div className="relative group">
+                              <User className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-zinc-500 group-focus-within:text-emerald-500 transition-colors" />
+                              <input 
+                                type="text"
+                                required
+                                value={registerName}
+                                onChange={(e) => setRegisterName(e.target.value)}
+                                placeholder="Ad Soyad"
+                                className="w-full bg-white/5 border border-white/10 rounded-2xl pl-12 pr-4 py-4 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all"
+                              />
+                            </div>
+                          </div>
+                        )}
 
                         <div className="space-y-2">
                           <div className="flex justify-between items-center ml-1">
@@ -4659,6 +5080,143 @@ export default function App() {
                   </>
                 )}
               </button>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Password Change Modal */}
+      <AnimatePresence>
+        {showPasswordChangeModal && (
+          <div className="fixed inset-0 z-[600] flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowPasswordChangeModal(false)}
+              className="absolute inset-0 bg-black/80 backdrop-blur-sm"
+            />
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              className="relative w-full max-w-md glass-card rounded-[2.5rem] p-8 md:p-10 space-y-6"
+            >
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-purple-500/10 rounded-xl flex items-center justify-center">
+                    <Key className="w-5 h-5 text-purple-400" />
+                  </div>
+                  <h3 className="text-2xl font-display font-bold text-white">Şifre Değiştir</h3>
+                </div>
+                <button 
+                  onClick={() => setShowPasswordChangeModal(false)}
+                  className="p-2 text-zinc-500 hover:text-white transition-colors"
+                >
+                  <X className="w-6 h-6" />
+                </button>
+              </div>
+
+              <div className="space-y-4">
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 ml-1">Mevcut Şifre</label>
+                  <input 
+                    type="password" 
+                    value={currentPassword}
+                    onChange={(e) => setCurrentPassword(e.target.value)}
+                    className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-purple-500/50 transition-all"
+                    placeholder="••••••••"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 ml-1">Yeni Şifre</label>
+                  <input 
+                    type="password" 
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-purple-500/50 transition-all"
+                    placeholder="••••••••"
+                  />
+                </div>
+
+                <button 
+                  onClick={handleChangePassword}
+                  disabled={isLoading}
+                  className="w-full py-4 rounded-2xl bg-purple-500 hover:bg-purple-400 text-white font-black text-[10px] uppercase tracking-widest transition-all shadow-lg shadow-purple-500/20 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                >
+                  {isLoading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <ShieldCheck className="w-4 h-4" />}
+                  Şifreyi Güncelle
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* New Login Warning Modal */}
+      <AnimatePresence>
+        {showNewLoginPopup && (
+          <div className="fixed inset-0 z-[700] flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="absolute inset-0 bg-black/90 backdrop-blur-md"
+            />
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              className="relative w-full max-w-md glass-card rounded-[2.5rem] p-8 md:p-10 space-y-6 border-red-500/30"
+            >
+              <div className="flex flex-col items-center text-center space-y-4">
+                <div className="w-20 h-20 bg-red-500/10 rounded-full flex items-center justify-center animate-pulse">
+                  <AlertCircle className="w-10 h-10 text-red-500" />
+                </div>
+                <h3 className="text-2xl font-display font-bold text-white">Yeni Giriş Tespit Edildi!</h3>
+                <p className="text-zinc-400 text-sm leading-relaxed">
+                  Hesabınıza farklı bir cihaz veya konumdan giriş yapıldı. Bu siz değilseniz lütfen hemen şifrenizi değiştirin.
+                </p>
+              </div>
+
+              {lastSession && (
+                <div className="p-4 bg-white/5 rounded-2xl border border-white/10 space-y-3">
+                  <div className="flex items-center gap-3">
+                    <Monitor className="w-5 h-5 text-zinc-400" />
+                    <div className="text-left">
+                      <div className="text-xs font-bold text-white">{lastSession.deviceName}</div>
+                      <div className="text-[10px] text-zinc-500 uppercase font-black tracking-tighter">Önceki Oturum</div>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 text-[10px] text-zinc-500">
+                    <MapPin className="w-3 h-3" />
+                    {lastSession.location}
+                  </div>
+                </div>
+              )}
+
+              <div className="flex flex-col gap-3">
+                <button 
+                  onClick={() => {
+                    setShowNewLoginPopup(false);
+                    setShowPasswordChangeModal(true);
+                    setProfile(prev => prev ? { ...prev, newLoginDetected: false } : null);
+                  }}
+                  className="w-full py-4 rounded-2xl bg-red-500 hover:bg-red-400 text-white font-black text-[10px] uppercase tracking-widest transition-all shadow-lg shadow-red-500/20"
+                >
+                  Şifremi Değiştir
+                </button>
+                <button 
+                  onClick={() => {
+                    setShowNewLoginPopup(false);
+                    setProfile(prev => prev ? { ...prev, newLoginDetected: false } : null);
+                  }}
+                  className="w-full py-4 rounded-2xl bg-white/5 border border-white/10 text-zinc-400 font-black text-[10px] uppercase tracking-widest hover:bg-white/10 transition-all"
+                >
+                  Bu Bendim, Sorun Yok
+                </button>
+              </div>
             </motion.div>
           </div>
         )}

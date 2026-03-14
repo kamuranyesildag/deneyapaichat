@@ -4,9 +4,19 @@ export interface Message {
   role: 'user' | 'assistant';
   content: string;
   timestamp: number;
+  isTyping?: boolean;
 }
 
 export type SubscriptionTier = 'FREE' | 'BASIC' | 'PRO';
+
+export interface UserSession {
+  id: string;
+  deviceName: string;
+  location: string;
+  ip: string;
+  lastActive: number;
+  isCurrent?: boolean;
+}
 
 export interface UserProfile {
   name: string;
@@ -25,6 +35,10 @@ export interface UserProfile {
   twoFASecret?: string;
   kvkkAccepted?: boolean;
   achievements?: string[];
+  sessions?: UserSession[];
+  newLoginDetected?: boolean;
+  isBanned?: boolean;
+  banReason?: string;
   stats?: {
     projectsGenerated: number;
     bugsFixed: number;
