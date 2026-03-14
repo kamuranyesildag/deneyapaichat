@@ -12,7 +12,7 @@ import {
   reauthenticateWithCredential,
   EmailAuthProvider
 } from 'firebase/auth';
-import { doc, setDoc, getDoc, collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, setDoc, getDoc, collection, addDoc, serverTimestamp, getDocs, query, orderBy } from 'firebase/firestore';
 import { 
   Cpu, 
   Bug, 
@@ -50,6 +50,7 @@ import {
   Copy,
   Check,
   Radio,
+  Search,
   Headphones,
   Waves,
   Mail,
@@ -68,7 +69,9 @@ import {
   Monitor,
   MapPin,
   Smartphone,
-  Globe
+  Globe,
+  ShieldAlert,
+  Users
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import Markdown from 'react-markdown';
@@ -111,6 +114,8 @@ interface ChangelogItem {
   changes: string[];
   type: 'major' | 'minor' | 'patch';
 }
+
+const ADMIN_UID = "CW8tG0yrt4g5ga40OqsrOXojGny1";
 
 const CHANGELOG: ChangelogItem[] = [
   {
@@ -390,6 +395,10 @@ export default function App() {
   const [newPassword, setNewPassword] = useState('');
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
   const [showInstallNotification, setShowInstallNotification] = useState(false);
+  const [adminUsers, setAdminUsers] = useState<{id: string, profile: UserProfile}[]>([]);
+  const [isAdminLoading, setIsAdminLoading] = useState(false);
+  const [adminSearch, setAdminSearch] = useState('');
+  const [adminStats, setAdminStats] = useState({ totalUsers: 0, bannedUsers: 0, premiumUsers: 0 });
 
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -537,6 +546,75 @@ export default function App() {
       setLicenseInput('');
     } else {
       addNotification("Geçersiz lisans kodu. Lütfen kontrol edin.", "error");
+    }
+  };
+
+  const fetchAdminUsers = async () => {
+    if (!firebaseUser || firebaseUser.uid !== ADMIN_UID || !db) return;
+    
+    setIsAdminLoading(true);
+    try {
+      const q = query(collection(db, 'users'), orderBy('createdAt', 'desc'));
+      const querySnapshot = await getDocs(q);
+      const users: {id: string, profile: UserProfile}[] = [];
+      let banned = 0;
+      let premium = 0;
+
+      querySnapshot.forEach((doc) => {
+        const data = doc.data() as UserProfile;
+        users.push({ id: doc.id, profile: data });
+        if (data.isBanned) banned++;
+        if (data.isPremium) premium++;
+      });
+
+      setAdminUsers(users);
+      setAdminStats({
+        totalUsers: users.length,
+        bannedUsers: banned,
+        premiumUsers: premium
+      });
+    } catch (error) {
+      console.error("Admin fetch error:", error);
+      addNotification("Kullanıcı verileri yüklenirken hata oluştu.", "error");
+    } finally {
+      setIsAdminLoading(false);
+    }
+  };
+
+  const handleAdminUserAction = async (userId: string, action: 'ban' | 'unban' | 'make_admin' | 'make_user' | 'make_premium' | 'remove_premium', reason?: string) => {
+    if (!firebaseUser || firebaseUser.uid !== ADMIN_UID || !db) return;
+
+    try {
+      const userRef = doc(db, 'users', userId);
+      let updates: Partial<UserProfile> = {};
+
+      switch (action) {
+        case 'ban':
+          updates = { isBanned: true, banReason: reason || "Kurallara aykırı davranış." };
+          break;
+        case 'unban':
+          updates = { isBanned: false, banReason: "" };
+          break;
+        case 'make_admin':
+          updates = { role: 'ADMIN' };
+          break;
+        case 'make_user':
+          updates = { role: 'STUDENT' };
+          break;
+        case 'make_premium':
+          updates = { isPremium: true, subscriptionTier: 'PRO' };
+          break;
+        case 'remove_premium':
+          updates = { isPremium: false, subscriptionTier: 'FREE' };
+          break;
+      }
+
+      await setDoc(userRef, updates, { merge: true });
+      addNotification("İşlem başarıyla tamamlandı.", "success");
+      fetchAdminUsers(); // Refresh list
+    } catch (error) {
+      console.error("Admin action error:", error);
+      addNotification("İşlem sırasında bir hata oluştu.", "error");
     }
   };
 
@@ -695,6 +773,12 @@ export default function App() {
   const [isPaymentLoading, setIsPaymentLoading] = useState(false);
   const [firebaseUser, setFirebaseUser] = useState<FirebaseUser | null>(null);
 
+  useEffect(() => {
+    if (mode === 'ADMIN') {
+      fetchAdminUsers();
+    }
+  }, [mode]);
+
   // Sync current chat to Firestore
   useEffect(() => {
     if (firebaseUser && db && messages.length > 0) {
@@ -754,17 +838,23 @@ export default function App() {
       
       try {
         if (user) {
-          try {
-            // Force token refresh to check if user is disabled in Auth
-            await user.getIdToken(true);
-          } catch (e: any) {
-            if (e.code === 'auth/user-disabled' || (e.message && e.message.includes('user-disabled'))) {
-              console.error("User is disabled in Firebase Auth");
-              setIsBanned(true);
-              setIsAuthLoading(false);
-              return;
+          const checkUserStatus = async () => {
+            try {
+              await user.getIdToken(true);
+              return true;
+            } catch (e: any) {
+              if (e.code === 'auth/user-disabled' || (e.message && e.message.includes('user-disabled'))) {
+                console.error("User is disabled in Firebase Auth");
+                setIsBanned(true);
+                setIsAuthLoading(false);
+                return false;
+              }
+              return true;
             }
-          }
+          };
+
+          const isOk = await checkUserStatus();
+          if (!isOk) return;
 
           // Fetch profile, history and current chat from Firestore in parallel
           let fetchedProfile: UserProfile | null = null;
@@ -927,6 +1017,26 @@ export default function App() {
     });
     return () => unsubscribe();
   }, []);
+
+  // Periodic account status check
+  useEffect(() => {
+    if (!firebaseUser || isBanned) return;
+
+    const checkStatus = async () => {
+      console.log("Checking account status...");
+      try {
+        await firebaseUser.getIdToken(true);
+      } catch (e: any) {
+        if (e.code === 'auth/user-disabled' || (e.message && e.message.includes('user-disabled'))) {
+          console.error("User is disabled in Firebase Auth (periodic check)");
+          setIsBanned(true);
+        }
+      }
+    };
+
+    const intervalId = setInterval(checkStatus, 30000); // Check every 30 seconds
+    return () => clearInterval(intervalId);
+  }, [firebaseUser, isBanned]);
 
   const handleEmailAuth = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -1588,6 +1698,207 @@ export default function App() {
     navigator.clipboard.writeText(text);
     setCopiedIdx(idx);
     setTimeout(() => setCopiedIdx(null), 2000);
+  };
+
+  const renderAdminPanel = () => {
+    const filteredUsers = adminUsers.filter(u => 
+      u.profile.name.toLowerCase().includes(adminSearch.toLowerCase()) ||
+      u.profile.email.toLowerCase().includes(adminSearch.toLowerCase()) ||
+      u.id.toLowerCase().includes(adminSearch.toLowerCase())
+    );
+
+    return (
+      <div className="p-4 md:p-12 max-w-7xl mx-auto pb-64 space-y-8">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 bg-red-500/10 rounded-2xl flex items-center justify-center">
+              <ShieldAlert className="text-red-400 w-6 h-6" />
+            </div>
+            <div>
+              <h2 className="text-3xl font-display font-bold">Admin Paneli</h2>
+              <p className="text-zinc-500 text-sm">Sistem yönetimi ve kullanıcı denetimi.</p>
+            </div>
+          </div>
+          <div className="flex gap-4">
+            <button 
+              onClick={fetchAdminUsers}
+              className="px-6 py-3 bg-white/5 hover:bg-white/10 rounded-2xl text-xs font-black uppercase tracking-widest transition-all flex items-center gap-2"
+            >
+              <RefreshCw className={cn("w-4 h-4", isAdminLoading && "animate-spin")} />
+              Yenile
+            </button>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="glass-card rounded-[2rem] p-6 border-white/5">
+            <div className="flex items-center gap-4 mb-2">
+              <Users className="w-5 h-5 text-blue-400" />
+              <span className="text-xs font-bold text-zinc-500 uppercase tracking-widest">Toplam Kullanıcı</span>
+            </div>
+            <div className="text-3xl font-display font-bold">{adminStats.totalUsers}</div>
+          </div>
+          <div className="glass-card rounded-[2rem] p-6 border-white/5">
+            <div className="flex items-center gap-4 mb-2">
+              <ShieldAlert className="w-5 h-5 text-red-400" />
+              <span className="text-xs font-bold text-zinc-500 uppercase tracking-widest">Yasaklı Hesaplar</span>
+            </div>
+            <div className="text-3xl font-display font-bold text-red-400">{adminStats.bannedUsers}</div>
+          </div>
+          <div className="glass-card rounded-[2rem] p-6 border-white/5">
+            <div className="flex items-center gap-4 mb-2">
+              <Star className="w-5 h-5 text-amber-400" />
+              <span className="text-xs font-bold text-zinc-500 uppercase tracking-widest">Premium Üyeler</span>
+            </div>
+            <div className="text-3xl font-display font-bold text-amber-400">{adminStats.premiumUsers}</div>
+          </div>
+        </div>
+
+        <div className="glass-card rounded-[2.5rem] overflow-hidden border-white/5">
+          <div className="p-6 border-b border-white/5 flex flex-col md:flex-row gap-4 justify-between items-center">
+            <div className="relative w-full md:w-96">
+              <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
+              <input 
+                type="text"
+                placeholder="İsim, e-posta veya UID ile ara..."
+                value={adminSearch}
+                onChange={(e) => setAdminSearch(e.target.value)}
+                className="w-full bg-white/5 border border-white/10 rounded-2xl py-3 pl-12 pr-4 text-sm focus:outline-none focus:border-red-500/50 transition-all"
+              />
+            </div>
+            <div className="text-xs text-zinc-500 font-medium">
+              {filteredUsers.length} kullanıcı listeleniyor
+            </div>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="bg-white/5">
+                  <th className="p-6 text-[10px] font-black uppercase tracking-widest text-zinc-500">Kullanıcı</th>
+                  <th className="p-6 text-[10px] font-black uppercase tracking-widest text-zinc-500">Rol / Statü</th>
+                  <th className="p-6 text-[10px] font-black uppercase tracking-widest text-zinc-500">Kayıt Tarihi</th>
+                  <th className="p-6 text-[10px] font-black uppercase tracking-widest text-zinc-500 text-right">İşlemler</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-white/5">
+                {isAdminLoading ? (
+                  <tr>
+                    <td colSpan={4} className="p-20 text-center">
+                      <RefreshCw className="w-8 h-8 text-red-500 animate-spin mx-auto mb-4" />
+                      <p className="text-zinc-500 text-sm">Veriler yükleniyor...</p>
+                    </td>
+                  </tr>
+                ) : filteredUsers.length === 0 ? (
+                  <tr>
+                    <td colSpan={4} className="p-20 text-center text-zinc-500">
+                      Kullanıcı bulunamadı.
+                    </td>
+                  </tr>
+                ) : (
+                  filteredUsers.map((u) => (
+                    <tr key={u.id} className="hover:bg-white/[0.02] transition-colors">
+                      <td className="p-6">
+                        <div className="flex items-center gap-4">
+                          <div className="w-10 h-10 bg-zinc-800 rounded-xl flex items-center justify-center text-xs font-bold overflow-hidden">
+                            {u.profile.photoURL ? (
+                              <img src={u.profile.photoURL} alt="" className="w-full h-full object-cover" />
+                            ) : (
+                              u.profile.name.charAt(0)
+                            )}
+                          </div>
+                          <div>
+                            <div className="font-bold text-white text-sm">{u.profile.name}</div>
+                            <div className="text-xs text-zinc-500">{u.profile.email}</div>
+                            <div className="text-[9px] text-zinc-600 font-mono mt-1">{u.id}</div>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="p-6">
+                        <div className="flex flex-col gap-2">
+                          <div className="flex gap-2">
+                            <span className={cn(
+                              "px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest",
+                              u.profile.role === 'ADMIN' ? "bg-red-500/20 text-red-400" :
+                              u.profile.role === 'INSTRUCTOR' ? "bg-blue-500/20 text-blue-400" :
+                              "bg-zinc-500/20 text-zinc-400"
+                            )}>
+                              {u.profile.role}
+                            </span>
+                            {u.profile.isPremium && (
+                              <span className="px-2 py-1 bg-amber-500/20 text-amber-400 rounded-lg text-[9px] font-black uppercase tracking-widest">
+                                PREMIUM
+                              </span>
+                            )}
+                          </div>
+                          {u.profile.isBanned && (
+                            <span className="text-[10px] text-red-500 font-bold flex items-center gap-1">
+                              <ShieldAlert className="w-3 h-3" />
+                              YASAKLI
+                            </span>
+                          )}
+                        </div>
+                      </td>
+                      <td className="p-6">
+                        <div className="text-xs text-zinc-400">
+                          {u.profile.createdAt ? new Date(u.profile.createdAt).toLocaleDateString('tr-TR') : 'Bilinmiyor'}
+                        </div>
+                      </td>
+                      <td className="p-6 text-right">
+                        <div className="flex items-center justify-end gap-2">
+                          {u.profile.isBanned ? (
+                            <button 
+                              onClick={() => handleAdminUserAction(u.id, 'unban')}
+                              className="p-2 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 rounded-lg transition-all"
+                              title="Yasağı Kaldır"
+                            >
+                              <ShieldCheck className="w-4 h-4" />
+                            </button>
+                          ) : (
+                            <button 
+                              onClick={() => {
+                                const reason = prompt("Yasaklama Sebebi:", "Kurallara aykırı davranış.");
+                                if (reason !== null) handleAdminUserAction(u.id, 'ban', reason);
+                              }}
+                              className="p-2 bg-red-500/10 hover:bg-red-500/20 text-red-400 rounded-lg transition-all"
+                              title="Yasakla"
+                            >
+                              <ShieldAlert className="w-4 h-4" />
+                            </button>
+                          )}
+                          
+                          <button 
+                            onClick={() => handleAdminUserAction(u.id, u.profile.isPremium ? 'remove_premium' : 'make_premium')}
+                            className={cn(
+                              "p-2 rounded-lg transition-all",
+                              u.profile.isPremium ? "bg-amber-500/20 text-amber-400 hover:bg-amber-500/30" : "bg-zinc-500/10 text-zinc-400 hover:bg-zinc-500/20"
+                            )}
+                            title={u.profile.isPremium ? "Premium'u Al" : "Premium Yap"}
+                          >
+                            <Star className="w-4 h-4" />
+                          </button>
+
+                          <button 
+                            onClick={() => handleAdminUserAction(u.id, u.profile.role === 'ADMIN' ? 'make_user' : 'make_admin')}
+                            className={cn(
+                              "p-2 rounded-lg transition-all",
+                              u.profile.role === 'ADMIN' ? "bg-red-500/20 text-red-400 hover:bg-red-500/30" : "bg-blue-500/10 text-blue-400 hover:bg-blue-500/20"
+                            )}
+                            title={u.profile.role === 'ADMIN' ? "Adminliği Al" : "Admin Yap"}
+                          >
+                            <Shield className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    );
   };
 
   const renderTabContent = () => {
@@ -2312,6 +2623,10 @@ export default function App() {
     }
 
     if (activeTab === 'chat') {
+      if (mode === 'ADMIN') {
+        return renderAdminPanel();
+      }
+
       if (mode === 'LEADERBOARD') {
         return (
           <div className="p-4 md:p-12 max-w-6xl mx-auto pb-64">
@@ -3487,6 +3802,23 @@ export default function App() {
               </div>
               
               <nav className="flex-1 p-4 space-y-1 overflow-y-auto custom-scrollbar">
+                {firebaseUser?.uid === ADMIN_UID && (
+                  <>
+                    <div className="px-4 py-2 text-[10px] font-bold uppercase tracking-[0.2em] text-red-500 mb-1">Yönetim</div>
+                    <button
+                      onClick={() => handleModeChange('ADMIN')}
+                      className={cn(
+                        "w-full flex items-center gap-3 px-4 py-2.5 rounded-xl transition-all duration-200 group mb-4",
+                        mode === 'ADMIN' && activeTab === 'chat'
+                          ? "bg-red-500/10 text-red-400 border border-red-500/20 shadow-lg shadow-red-500/5" 
+                          : "text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200"
+                      )}
+                    >
+                      <ShieldAlert className={cn("w-4 h-4", mode === 'ADMIN' ? "text-red-400" : "group-hover:text-zinc-200")} />
+                      <span className="font-semibold text-sm">Admin Paneli</span>
+                    </button>
+                  </>
+                )}
                 <div className="px-4 py-2 text-[10px] font-bold uppercase tracking-[0.2em] text-zinc-500 mb-1">Ücretsiz Modlar</div>
                 <button
                   onClick={() => handleModeChange('CHAT')}
@@ -4032,6 +4364,27 @@ export default function App() {
         </div>
 
         <nav className="flex-1 px-3 lg:px-6 pb-8 space-y-8 overflow-y-auto custom-scrollbar">
+          {firebaseUser?.uid === ADMIN_UID && (
+            <div className="space-y-3">
+              <div className="hidden lg:block px-4 text-[10px] font-black uppercase tracking-[0.2em] text-red-500 mb-2">Yönetim</div>
+              <button
+                onClick={() => handleModeChange('ADMIN')}
+                className={cn(
+                  "w-full flex items-center gap-4 px-3 lg:px-5 py-3.5 rounded-2xl transition-all duration-500 group/item relative overflow-hidden",
+                  mode === 'ADMIN' && activeTab === 'chat'
+                    ? "bg-red-500/10 text-red-400 border border-red-500/20 shadow-lg shadow-red-500/5" 
+                    : "text-zinc-500 hover:bg-white/5 hover:text-zinc-200"
+                )}
+              >
+                <ShieldAlert className={cn("w-5 h-5 transition-colors duration-500 shrink-0", mode === 'ADMIN' ? "text-red-400" : "group-hover/item:text-zinc-200")} />
+                <span className="font-bold text-sm hidden lg:block tracking-tight">Admin Paneli</span>
+                {mode === 'ADMIN' && (
+                  <motion.div layoutId="sidebar-active" className="absolute left-0 w-1 h-6 rounded-full bg-red-500" />
+                )}
+              </button>
+            </div>
+          )}
+
           {/* Main Tools */}
           <div className="space-y-3">
             <div className="hidden lg:block px-4 text-[10px] font-black uppercase tracking-[0.2em] text-zinc-600 mb-2">Akıllı Araçlar</div>

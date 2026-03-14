@@ -1,4 +1,4 @@
-export type AppMode = 'PROJECT_GEN' | 'DEBUGGER' | 'AI_OPTIMIZER' | 'ROADMAP_GEN' | 'COMPONENT_LIB' | 'EXPERT_MENTOR' | 'LIVE_VOICE' | 'IMAGE_GEN' | 'SUBSCRIPTION' | 'FAQ' | 'TERMS' | 'PRIVACY' | 'DAILY_CHALLENGE' | 'TECH_NEWS' | 'QUIZ' | 'SHOWCASE' | 'LEADERBOARD' | 'REPORT_GEN' | 'CIRCUIT_ASSISTANT' | 'CODE_CONVERTER' | 'CHAT';
+export type AppMode = 'PROJECT_GEN' | 'DEBUGGER' | 'AI_OPTIMIZER' | 'ROADMAP_GEN' | 'COMPONENT_LIB' | 'EXPERT_MENTOR' | 'LIVE_VOICE' | 'IMAGE_GEN' | 'SUBSCRIPTION' | 'FAQ' | 'TERMS' | 'PRIVACY' | 'DAILY_CHALLENGE' | 'TECH_NEWS' | 'QUIZ' | 'SHOWCASE' | 'LEADERBOARD' | 'REPORT_GEN' | 'CIRCUIT_ASSISTANT' | 'CODE_CONVERTER' | 'CHAT' | 'ADMIN';
 
 export interface Message {
   role: 'user' | 'assistant';
@@ -23,7 +23,7 @@ export interface UserProfile {
   level: 'Başlangıç' | 'Orta' | 'İleri';
   totalQuestions: number;
   subscriptionTier: SubscriptionTier;
-  role?: 'STUDENT' | 'INSTRUCTOR' | 'REPRESENTATIVE';
+  role?: 'STUDENT' | 'INSTRUCTOR' | 'REPRESENTATIVE' | 'ADMIN';
   isPremium?: boolean; // Keep for backward compatibility or remove if not needed
   lastLogin?: number;
   deviceId?: string;
@@ -39,6 +39,8 @@ export interface UserProfile {
   newLoginDetected?: boolean;
   isBanned?: boolean;
   banReason?: string;
+  photoURL?: string;
+  createdAt?: number;
   stats?: {
     projectsGenerated: number;
     bugsFixed: number;

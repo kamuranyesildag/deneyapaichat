@@ -123,7 +123,8 @@ export async function generateResponse(prompt: string, mode: AppMode, profile: U
     'SUBSCRIPTION': 'ABONELİK VE PLANLAR (Bilgi sayfası)',
     'FAQ': 'SIKÇA SORULAN SORULAR (Bilgi sayfası)',
     'TERMS': 'HİZMET ŞARTLARI (Bilgi sayfası)',
-    'PRIVACY': 'GİZLİLİK POLİTİKASI (Bilgi sayfası)'
+    'PRIVACY': 'GİZLİLİK POLİTİKASI (Bilgi sayfası)',
+    'ADMIN': 'ADMİN PANELİ (Sistem yönetimi)'
   };
 
   const isPro = profile.subscriptionTier === 'PRO';
