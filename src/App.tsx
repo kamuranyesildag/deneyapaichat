@@ -754,6 +754,18 @@ export default function App() {
       
       try {
         if (user) {
+          try {
+            // Force token refresh to check if user is disabled in Auth
+            await user.getIdToken(true);
+          } catch (e: any) {
+            if (e.code === 'auth/user-disabled' || (e.message && e.message.includes('user-disabled'))) {
+              console.error("User is disabled in Firebase Auth");
+              setIsBanned(true);
+              setIsAuthLoading(false);
+              return;
+            }
+          }
+
           // Fetch profile, history and current chat from Firestore in parallel
           let fetchedProfile: UserProfile | null = null;
           let fetchedHistory: HistoryItem[] = [];
@@ -932,6 +944,11 @@ export default function App() {
       }
     } catch (error: any) {
       console.error("Auth Error:", error);
+      if (error.code === 'auth/user-disabled') {
+        setIsBanned(true);
+        setIsLoading(false);
+        return;
+      }
       let msg = error.message || "Giriş işlemi başarısız oldu.";
       if (error.code === 'auth/network-request-failed') {
         msg = "Ağ hatası: Firebase sunucularına bağlanılamadı. Lütfen internet bağlantınızı kontrol edin. Eğer bağlantınızda sorun yoksa, Firebase API anahtarınızın (API Key) veya Auth Domain ayarınızın doğru olduğundan emin olun.";
@@ -997,6 +1014,11 @@ export default function App() {
       }
     } catch (error: any) {
       console.error("Google Sign-In Error Details:", error);
+      if (error.code === 'auth/user-disabled') {
+        setIsBanned(true);
+        setIsLoading(false);
+        return;
+      }
       let msg = "Giriş yapılırken bir hata oluştu.";
       
       if (error.code === 'auth/popup-blocked') {
